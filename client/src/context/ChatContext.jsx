@@ -94,6 +94,18 @@ export const useChatStore = create((set, get) => ({
     });
   },
 
+  removeMessage: (chatId, messageId) => {
+    set((state) => {
+      const currentMessages = state.messages[chatId] || [];
+      return {
+        messages: {
+          ...state.messages,
+          [chatId]: currentMessages.filter(m => m._id !== messageId && m.tempId !== messageId)
+        }
+      };
+    });
+  },
+
   updateMessageSeen: (chatId, messageId, userId) => {
     set((state) => {
       const currentMessages = state.messages[chatId] || [];

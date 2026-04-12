@@ -2,19 +2,22 @@ import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useChatStore } from '../../context/ChatContext';
 import { useSocket } from '../../context/SocketContext';
-import { ChevronLeft, MoreVertical, Phone, Video, Download, X } from 'lucide-react';
+import { ChevronLeft, MoreVertical, Phone, Video, Download, X, Trash2, AlertTriangle } from 'lucide-react';
 import ChatBubble from './ChatBubble';
 import ChatInput from './ChatInput';
 import Spinner from '../ui/Spinner';
+import api from '../../services/api';
+import toast from 'react-hot-toast';
 
 export default function ChatWindow({ onBack }) {
   const { user } = useAuth();
-  const { selectedChat, messages, fetchMessages, hasMore } = useChatStore();
+  const { selectedChat, messages, fetchMessages, hasMore, removeMessage } = useChatStore();
   const { socket } = useSocket();
   const [loadingMore, setLoadingMore] = useState(false);
   const [typingUsers, setTypingUsers] = useState({}); // userId -> username
   const [replyMessage, setReplyMessage] = useState(null);
   const [selectedImage, setSelectedImage] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null); // message to show delete modal for
   
   const messagesEndRef = useRef(null);
   const listRef = useRef(null);
@@ -30,6 +33,7 @@ export default function ChatWindow({ onBack }) {
     }
     // Cancel any active reply when switching chats
     setReplyMessage(null);
+    setDeleteTarget(null);
   }, [chatId]);
 
   // Handle typing indicator socket events
@@ -90,22 +94,43 @@ export default function ChatWindow({ onBack }) {
     }
   };
 
-  // Mark all as seen when chat opens
+  // Mark all as seen when chat opens AND emit socket events for real-time blue ticks
   useEffect(() => {
     if (chatId && chatMessages.length > 0) {
-      const unseenIds = chatMessages
-        .filter(m => m.senderId._id !== user._id && !(m.seenBy || []).includes(user._id))
-        .map(m => m._id);
+      const unseenMessages = chatMessages
+        .filter(m => m.senderId._id !== user._id && !(m.seenBy || []).includes(user._id));
         
-      if (unseenIds.length > 0) {
-         // In a real implementation we'd batch this to the server
-         // Wait, we have a route for this!
-         import('../../services/api').then(({ default: api }) => {
-           api.put(`/messages/${chatId}/seen-all`).catch(e => console.error(e));
+      if (unseenMessages.length > 0) {
+         // Call the batch API
+         import('../../services/api').then(({ default: apiInstance }) => {
+           apiInstance.put(`/messages/${chatId}/seen-all`).catch(e => console.error(e));
          });
+
+         // Also emit individual socket seen events for real-time blue tick updates
+         if (socket) {
+           unseenMessages.forEach(m => {
+             socket.emit('message_seen', { messageId: m._id, chatId });
+           });
+         }
       }
     }
-  }, [chatId, chatMessages, user._id]);
+  }, [chatId, chatMessages, user._id, socket]);
+
+  // Delete message handler
+  const handleDeleteMessage = async (type) => {
+    if (!deleteTarget) return;
+    try {
+      await api.delete(`/messages/${deleteTarget._id}?type=${type}`);
+      // For 'me' deletion, remove locally. For 'everyone', server emits socket event.
+      if (type === 'me') {
+        removeMessage(chatId, deleteTarget._id);
+      }
+      toast.success(type === 'everyone' ? 'Deleted for everyone' : 'Deleted for you');
+    } catch (error) {
+      toast.error('Failed to delete message');
+    }
+    setDeleteTarget(null);
+  };
 
   if (!selectedChat) return null;
 
@@ -129,6 +154,8 @@ export default function ChatWindow({ onBack }) {
       : `${typingNames.length} people are typing...` 
     : '';
 
+  const isDeleteTargetOwn = deleteTarget?.senderId?._id === user._id;
+
   return (
     <div className="flex flex-col h-full bg-[var(--color-surface-900)] relative w-full">
       {/* Header */}
@@ -149,6 +176,9 @@ export default function ChatWindow({ onBack }) {
                  <span className="font-bold">{name.charAt(0).toUpperCase()}</span>
                )}
             </div>
+            {!isGroup && isOnline && (
+              <div className="absolute bottom-0 right-0 w-3 h-3 bg-[var(--color-success)] rounded-full border-2 border-[var(--color-surface-800)]"></div>
+            )}
           </div>
           
           <div className="flex flex-col">
@@ -201,6 +231,7 @@ export default function ChatWindow({ onBack }) {
                   isOwn={msg.senderId?._id === user._id}
                   showAvatar={showAvatar}
                   onReply={() => setReplyMessage(msg)}
+                  onDelete={(m) => setDeleteTarget(m)}
                   onImageClick={(url) => setSelectedImage(url)}
                 />
               );
@@ -216,6 +247,51 @@ export default function ChatWindow({ onBack }) {
         replyMessage={replyMessage}
         onCancelReply={() => setReplyMessage(null)}
       />
+
+      {/* Delete Message Modal */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-[100] bg-black/60 flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in" onClick={() => setDeleteTarget(null)}>
+          <div 
+            className="bg-[var(--color-surface-800)] rounded-2xl p-6 max-w-sm w-full shadow-glass border border-[var(--color-border)] animate-scale-in"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-[var(--color-danger)]/20 flex items-center justify-center">
+                <Trash2 size={20} className="text-[var(--color-danger)]" />
+              </div>
+              <h3 className="text-lg font-semibold text-[var(--color-text-primary)]">Delete Message?</h3>
+            </div>
+            
+            <p className="text-sm text-[var(--color-text-secondary)] mb-1 line-clamp-2">
+              "{deleteTarget.text || '📎 Attachment'}"
+            </p>
+
+            <div className="flex flex-col gap-2 mt-5">
+              {isDeleteTargetOwn && (
+                <button
+                  onClick={() => handleDeleteMessage('everyone')}
+                  className="w-full py-2.5 px-4 rounded-xl bg-[var(--color-danger)] hover:bg-[var(--color-danger-hover)] text-white font-medium transition-colors flex items-center justify-center gap-2"
+                >
+                  <AlertTriangle size={16} />
+                  Delete for Everyone
+                </button>
+              )}
+              <button
+                onClick={() => handleDeleteMessage('me')}
+                className="w-full py-2.5 px-4 rounded-xl bg-[var(--color-surface-600)] hover:bg-[var(--color-surface-700)] text-[var(--color-text-primary)] font-medium transition-colors"
+              >
+                Delete for Me
+              </button>
+              <button
+                onClick={() => setDeleteTarget(null)}
+                className="w-full py-2.5 px-4 rounded-xl text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] font-medium transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Fullscreen Image Viewer Modal */}
       {selectedImage && (

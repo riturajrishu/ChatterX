@@ -5,7 +5,7 @@ import Sidebar from '../components/layout/Sidebar';
 import ChatWindow from '../components/chat/ChatWindow';
 
 export default function ChatDashboard() {
-  const { fetchChats, selectedChat, setSelectedChat, addMessage, updateMessageSeen } = useChatStore();
+  const { fetchChats, selectedChat, setSelectedChat, addMessage, updateMessageSeen, removeMessage } = useChatStore();
   const { socket, isConnected } = useSocket();
   const [isMobileListVisible, setIsMobileListVisible] = useState(true);
 
@@ -47,18 +47,23 @@ export default function ChatDashboard() {
        fetchChats();
     };
 
+    const handleMessageDeleted = ({ messageId, chatId }) => {
+      removeMessage(chatId, messageId);
+    };
+
     socket.on('receive_message', handleReceiveMessage);
     socket.on('message_seen_update', handleMessageSeen);
-    // You could listen to other events here like user online/offline to update specific participant statuses
+    socket.on('message_deleted', handleMessageDeleted);
 
     return () => {
       socket.off('receive_message', handleReceiveMessage);
       socket.off('message_seen_update', handleMessageSeen);
+      socket.off('message_deleted', handleMessageDeleted);
     };
-  }, [socket, isConnected, addMessage, updateMessageSeen, fetchChats]);
+  }, [socket, isConnected, addMessage, updateMessageSeen, removeMessage, fetchChats]);
 
   return (
-    <div className="flex h-[100dvh] bg-[var(--color-surface-900)] overflow-hidden">
+    <div className="flex fixed inset-0 bg-[var(--color-surface-900)] overflow-hidden">
       {/* Sidebar - hidden on mobile if chat is active */}
       <div 
         className={`w-full md:w-[360px] lg:w-[400px] border-r border-[var(--color-border)] flex-shrink-0 bg-[var(--color-surface-800)] transition-all

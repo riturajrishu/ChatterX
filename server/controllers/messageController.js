@@ -106,17 +106,34 @@ const markAllSeen = async (req, res, next) => {
 // DELETE /api/messages/:id
 const deleteMessage = async (req, res, next) => {
   try {
+    const { type } = req.query; // 'me' or 'everyone'
     const message = await Message.findById(req.params.id);
     if (!message) {
       return res.status(404).json({ message: 'Message not found.' });
     }
 
-    // Delete for sender only
-    await Message.findByIdAndUpdate(req.params.id, {
-      $addToSet: { deletedFor: req.user._id },
-    });
-
-    res.json({ message: 'Message deleted for you.' });
+    if (type === 'everyone') {
+       if (message.senderId.toString() !== req.user._id.toString()) {
+          return res.status(403).json({ message: 'Cannot delete others message for everyone.' });
+       }
+       await Message.findByIdAndDelete(req.params.id);
+       
+       // Emit socket event to remove it from all clients
+       const io = req.app.get('io');
+       if (io) {
+         io.to(message.chatId.toString()).emit('message_deleted', { 
+           messageId: message._id, 
+           chatId: message.chatId 
+         });
+       }
+       return res.json({ message: 'Message deleted for everyone.' });
+    } else {
+       // Delete for sender only
+       await Message.findByIdAndUpdate(req.params.id, {
+         $addToSet: { deletedFor: req.user._id },
+       });
+       return res.json({ message: 'Message deleted for you.' });
+    }
   } catch (error) {
     next(error);
   }

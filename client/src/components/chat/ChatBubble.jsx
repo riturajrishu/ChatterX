@@ -2,23 +2,11 @@ import { useState, useRef } from 'react';
 import { format } from 'date-fns';
 import { Check, CheckCheck, Reply, Trash2, ShieldAlert, Clock } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import api from '../../services/api';
-import toast from 'react-hot-toast';
 
-export default function ChatBubble({ message, isOwn, showAvatar, onReply, onImageClick }) {
+export default function ChatBubble({ message, isOwn, showAvatar, onReply, onDelete, onImageClick }) {
   const { user } = useAuth();
   
   if (!message) return null;
-
-  const handleDelete = async () => {
-    try {
-      await api.delete(`/messages/${message._id}`);
-      // Optimistic update would be better mapped via context, but reloading works for now
-      toast.success('Message deleted for you');
-    } catch (error) {
-      toast.error('Failed to delete message');
-    }
-  };
 
   const isSeen = message.seenBy?.some(id => id !== message.senderId?._id);
   const timeStr = message.timestamp ? format(new Date(message.timestamp), 'HH:mm') : '';
@@ -36,10 +24,10 @@ export default function ChatBubble({ message, isOwn, showAvatar, onReply, onImag
     const currentX = e.targetTouches[0].clientX;
     const diff = currentX - touchStartRef.current;
     
-    // swipe right to reply, swipe left to delete (only if own)
+    // swipe right to reply, swipe left to delete
     if (diff > 0) {
       setSwipeOffset(Math.min(diff, 60));
-    } else if (isOwn && diff < 0) {
+    } else if (diff < 0) {
       setSwipeOffset(Math.max(diff, -60));
     }
   };
@@ -47,9 +35,9 @@ export default function ChatBubble({ message, isOwn, showAvatar, onReply, onImag
   const handleTouchEnd = () => {
     // Threshold is 40px
     if (swipeOffset > 40) {
-      onReply();
-    } else if (swipeOffset < -40 && isOwn) {
-      handleDelete();
+      onReply?.();
+    } else if (swipeOffset < -40) {
+      onDelete?.(message);
     }
     setSwipeOffset(0);
     touchStartRef.current = null;
@@ -64,11 +52,9 @@ export default function ChatBubble({ message, isOwn, showAvatar, onReply, onImag
             <Reply size={20} />
          </div>
          {/* Right Side (Delete) */}
-         {isOwn && (
-           <div className={`text-[var(--color-danger)] transition-transform ${swipeOffset < -40 ? 'scale-125' : 'scale-100'}`}>
-              <Trash2 size={20} />
-           </div>
-         )}
+         <div className={`text-[var(--color-danger)] transition-transform ${swipeOffset < -40 ? 'scale-125' : 'scale-100'}`}>
+            <Trash2 size={20} />
+         </div>
       </div>
 
       <div 
@@ -99,7 +85,7 @@ export default function ChatBubble({ message, isOwn, showAvatar, onReply, onImag
         {/* Context Menu (Hover) */}
         <div className={`absolute top-1 ${isOwn ? '-left-16' : '-right-16'} opacity-0 group-hover:opacity-100 transition-opacity flex bg-[var(--color-surface-700)] rounded shadow-sm border border-[var(--color-border)]`}>
            <button onClick={onReply} className="p-1.5 hover:text-white text-[var(--color-text-secondary)]"><Reply size={14}/></button>
-           {isOwn && <button onClick={handleDelete} className="p-1.5 hover:text-[var(--color-danger)] text-[var(--color-text-secondary)]"><Trash2 size={14}/></button>}
+           <button onClick={() => onDelete?.(message)} className="p-1.5 hover:text-[var(--color-danger)] text-[var(--color-text-secondary)]"><Trash2 size={14}/></button>
         </div>
 
         {/* Sender Name for Groups */}
