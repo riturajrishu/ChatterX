@@ -1,13 +1,12 @@
-const sgMail = require('@sendgrid/mail');
-
 const sendSignedUpOTP = async (email, otp) => {
   try {
-    if (!process.env.SENDGRID_API_KEY) {
-      console.error('SENDGRID_API_KEY is missing from environment variables.');
+    const emailServiceUrl = process.env.EMAIL_SERVICE_URL;
+    const emailServiceKey = process.env.EMAIL_SERVICE_API_KEY;
+
+    if (!emailServiceUrl || !emailServiceKey) {
+      console.error('EMAIL_SERVICE_URL or EMAIL_SERVICE_API_KEY is missing.');
       throw new Error('Email service not configured.');
     }
-
-    sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
     // HTML email template
     const htmlContent = `
@@ -26,25 +25,31 @@ const sendSignedUpOTP = async (email, otp) => {
       </div>
     `;
 
-    const msg = {
-      from: `"Whispr Support" <${process.env.SMTP_USER}>`,
-      to: email,
-      subject: 'Your Signup Verification Code - Whispr',
-      html: htmlContent,
-    };
-
-    const response = await sgMail.send(msg);
-    console.log('SendGrid Response:', {
-      statusCode: response[0].statusCode,
-      headers: response[0].headers,
+    const response = await fetch(`${emailServiceUrl}/api/send-email`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': emailServiceKey,
+      },
+      body: JSON.stringify({
+        from: `"Whispr Support" <${process.env.SMTP_USER}>`,
+        to: email,
+        subject: 'Your Signup Verification Code - Whispr',
+        html: htmlContent,
+      }),
     });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      console.error('Email proxy error:', data);
+      throw new Error(data.error || 'Email proxy failed');
+    }
+
+    console.log('Email sent via proxy:', data);
     return true;
   } catch (error) {
-    console.error('Email sending error details:', {
-      message: error.message,
-      code: error.code,
-      response: error.response ? error.response.body : 'No response body',
-    });
+    console.error('Email sending error:', error.message);
     throw new Error('Could not send verification email. Please try again later.');
   }
 };
