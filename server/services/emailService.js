@@ -1,26 +1,14 @@
-const nodemailer = require('nodemailer');
-
-const createTransporter = () => {
-  return nodemailer.createTransport({
-    host: 'smtp.gmail.com',
-    port: 587,
-    secure: false, // true for 465, false for other ports (uses STARTTLS)
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
-    },
-    // Adding timeout and family settings for cloud environments
-    connectionTimeout: 15000, 
-    greetingTimeout: 15000,
-    socketTimeout: 30000,
-    family: 4, // Force IPv4
-  });
-};
+const sgMail = require('@sendgrid/mail');
 
 const sendSignedUpOTP = async (email, otp) => {
   try {
-    const transporter = createTransporter();
-    
+    if (!process.env.SENDGRID_API_KEY) {
+      console.error('SENDGRID_API_KEY is missing from environment variables.');
+      throw new Error('Email service not configured.');
+    }
+
+    sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+
     // HTML email template
     const htmlContent = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
@@ -38,14 +26,14 @@ const sendSignedUpOTP = async (email, otp) => {
       </div>
     `;
 
-    const mailOptions = {
+    const msg = {
       from: `"Whispr Support" <${process.env.SMTP_USER}>`,
       to: email,
       subject: 'Your Signup Verification Code - Whispr',
       html: htmlContent,
     };
 
-    await transporter.sendMail(mailOptions);
+    await sgMail.send(msg);
     return true;
   } catch (error) {
     console.error('Email sending error:', error);
