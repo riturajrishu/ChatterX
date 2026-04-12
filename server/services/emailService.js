@@ -33,10 +33,18 @@ const sendSignedUpOTP = async (email, otp) => {
       html: htmlContent,
     };
 
-    await sgMail.send(msg);
+    const response = await sgMail.send(msg);
+    console.log('SendGrid Response:', {
+      statusCode: response[0].statusCode,
+      headers: response[0].headers,
+    });
     return true;
   } catch (error) {
-    console.error('Email sending error:', error);
+    console.error('Email sending error details:', {
+      message: error.message,
+      code: error.code,
+      response: error.response ? error.response.body : 'No response body',
+    });
     throw new Error('Could not send verification email. Please try again later.');
   }
 };
