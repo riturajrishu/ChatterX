@@ -24,6 +24,9 @@ const adminRoutes = require('./routes/adminRoutes');
 const app = express();
 const server = http.createServer(app);
 
+// Trust proxy for Render deployment (required for express-rate-limit)
+app.set('trust proxy', 1);
+
 // ── Security & Parsing Middleware ──────────────────────────
 app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' },
