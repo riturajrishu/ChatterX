@@ -58,7 +58,7 @@ export default function ChatDashboard() {
   }, [socket, isConnected, addMessage, updateMessageSeen, fetchChats]);
 
   return (
-    <div className="flex h-screen bg-[var(--color-surface-900)] overflow-hidden">
+    <div className="flex h-[100dvh] bg-[var(--color-surface-900)] overflow-hidden">
       {/* Sidebar - hidden on mobile if chat is active */}
       <div 
         className={`w-full md:w-[360px] lg:w-[400px] border-r border-[var(--color-border)] flex-shrink-0 bg-[var(--color-surface-800)] transition-all

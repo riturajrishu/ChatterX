@@ -27,8 +27,9 @@ export const SocketProvider = ({ children }) => {
     const socketInstance = io(import.meta.env.VITE_SOCKET_URL, {
       withCredentials: true,
       transports: ['websocket', 'polling'],
-      reconnectionAttempts: 5,
+      reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
     });
 
     socketInstance.on('connect', () => {

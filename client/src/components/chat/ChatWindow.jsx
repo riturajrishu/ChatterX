@@ -132,7 +132,7 @@ export default function ChatWindow({ onBack }) {
   return (
     <div className="flex flex-col h-full bg-[var(--color-surface-900)] relative w-full">
       {/* Header */}
-      <div className="h-16 px-4 flex items-center justify-between border-b border-[var(--color-border)] bg-[var(--color-surface-800)] z-10">
+      <div className="h-16 flex-shrink-0 px-4 flex items-center justify-between border-b border-[var(--color-border)] bg-[var(--color-surface-800)] z-10">
         <div className="flex items-center gap-3">
           <button 
             onClick={onBack}
