@@ -3,7 +3,7 @@ import { format } from 'date-fns';
 import { Check, CheckCheck, Reply, Trash2, ShieldAlert, Clock } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
-export default function ChatBubble({ message, isOwn, showAvatar, onReply, onDelete, onImageClick }) {
+export default function ChatBubble({ message, isOwn, isGroup, showAvatar, onReply, onDelete, onImageClick }) {
   const { user } = useAuth();
   
   if (!message) return null;
@@ -66,7 +66,7 @@ export default function ChatBubble({ message, isOwn, showAvatar, onReply, onDele
       >
       
       {/* Avatar for group chats (incoming only) */}
-      {!isOwn && showAvatar && (
+      {!isOwn && isGroup && showAvatar && (
          <div className="w-8 h-8 rounded-full bg-[var(--color-surface-600)] shrink-0 mr-2 mt-1 flex items-center justify-center overflow-hidden">
            {message.senderId?.avatar ? (
              <img src={message.senderId.avatar} className="w-full h-full object-cover" />
@@ -75,7 +75,7 @@ export default function ChatBubble({ message, isOwn, showAvatar, onReply, onDele
            )}
          </div>
       )}
-      {!isOwn && !showAvatar && <div className="w-8 mr-2 shrink-0"></div>}
+      {!isOwn && isGroup && !showAvatar && <div className="w-8 mr-2 shrink-0"></div>}
 
       <div className={`
           relative max-w-[75%] md:max-w-[65%] rounded-lg px-3 py-1.5 shadow-sm

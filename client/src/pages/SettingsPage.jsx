@@ -106,7 +106,7 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="h-screen overflow-y-auto bg-[var(--color-surface-900)] flex justify-center py-6 sm:py-10 px-4 pb-20">
+    <div className="h-[100dvh] overflow-y-auto bg-[var(--color-surface-900)] flex justify-center py-6 sm:py-10 px-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
       <div className="max-w-2xl w-full">
         
         {/* Header */}
@@ -236,7 +236,7 @@ export default function SettingsPage() {
             <h3 className="text-xl font-bold mb-2">Set up 2FA</h3>
             <p className="text-sm text-[var(--color-text-secondary)] mb-6">Scan this QR code with Google Authenticator or Authy.</p>
             
-            <div className="bg-white p-2 rounded-lg inline-block mx-auto mb-4 border-4 border-white">
+            <div className="bg-white p-2 rounded-lg flex items-center justify-center mx-auto mb-4 border-4 border-white max-w-fit">
                <img src={qrCode} alt="2FA QR Code" className="w-[180px] h-[180px]" />
             </div>
             

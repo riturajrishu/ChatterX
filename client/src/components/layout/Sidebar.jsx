@@ -146,12 +146,12 @@ export default function Sidebar({ onChatSelect }) {
                      )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h4 className="font-medium text-text-primary truncate">{resultUser.username}</h4>
+                    <h4 className="font-medium text-[var(--color-text-primary)] truncate">{resultUser.username}</h4>
                   </div>
                 </div>
               ))
             ) : (
-              <p className="px-4 py-3 text-sm text-text-secondary text-center">No users found.</p>
+              <p className="px-4 py-3 text-sm text-[var(--color-text-secondary)] text-center">No users found.</p>
             )}
           </div>
         ) : (

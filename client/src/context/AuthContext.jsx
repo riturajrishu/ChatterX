@@ -6,18 +6,19 @@ export const useAuth = create(
   persist(
     (set, get) => ({
       user: null,
-      loading: true,
+      isCheckingAuth: true,
+      loading: false,
       error: null,
 
       setUser: (user) => set({ user }),
       
       checkAuth: async () => {
-        set({ loading: true, error: null });
+        set({ isCheckingAuth: true, error: null });
         try {
           const { data } = await api.get('/auth/me');
-          set({ user: data.user, loading: false });
+          set({ user: data.user, isCheckingAuth: false });
         } catch (error) {
-          set({ user: null, loading: false });
+          set({ user: null, isCheckingAuth: false });
         }
       },
 

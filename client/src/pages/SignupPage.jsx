@@ -21,6 +21,8 @@ export default function SignupPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [usernameStatus, setUsernameStatus] = useState('idle');
   const [countdown, setCountdown] = useState(0);
+  const [otpError, setOtpError] = useState('');
+  const [otpShake, setOtpShake] = useState(false);
   const otpInputRef = useRef(null);
   
   const { signup } = useAuth();
@@ -122,6 +124,7 @@ export default function SignupPage() {
     if (otp.length < 6) return toast.error('Please enter the 6-digit OTP');
 
     setIsSubmitting(true);
+    setOtpError('');
     try {
       const result = await signup({
         username: formData.username,
@@ -136,7 +139,14 @@ export default function SignupPage() {
         navigate('/');
       }
     } catch (error) {
-       toast.error(error.response?.data?.message || 'Failed to verify OTP. Please check the code.');
+      const errMsg = error.response?.data?.message || 'Invalid or expired OTP. Please try again.';
+      setOtpError(errMsg);
+      toast.error(errMsg);
+      // Clear OTP, shake, and re-focus for retry
+      setOtp('');
+      setOtpShake(true);
+      setTimeout(() => setOtpShake(false), 500);
+      setTimeout(() => otpInputRef.current?.focus(), 100);
     } finally {
       setIsSubmitting(false);
     }
@@ -266,20 +276,23 @@ export default function SignupPage() {
               </p>
             </div>
 
-            <Input
-              ref={otpInputRef}
-              type="text"
-              inputMode="numeric"
-              pattern="[0-9]*"
-              maxLength={6}
-              label="Verification Code"
-              placeholder="000000"
-              value={otp}
-              onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-              icon={ShieldCheck}
-              required
-              className="text-center tracking-[0.5em] text-3xl font-extrabold py-5"
-            />
+            <div className={otpShake ? 'animate-shake' : ''}>
+              <Input
+                ref={otpInputRef}
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                maxLength={6}
+                label="Verification Code"
+                placeholder="000000"
+                value={otp}
+                onChange={(e) => { setOtp(e.target.value.replace(/\D/g, '').slice(0, 6)); setOtpError(''); }}
+                icon={ShieldCheck}
+                required
+                error={otpError}
+                className="text-center tracking-[0.5em] text-3xl font-extrabold py-5"
+              />
+            </div>
 
             {/* Resend OTP */}
             <div className="text-center">

@@ -1,20 +1,21 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { useEffect } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { useAuth } from './context/AuthContext';
 import { SocketProvider } from './context/SocketContext';
 
 import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
-import ChatDashboard from './pages/ChatDashboard';
-import SettingsPage from './pages/SettingsPage';
-import DeviceHistoryPage from './pages/DeviceHistoryPage';
-import AdminDashboard from './pages/AdminDashboard';
 import LoadingScreen from './components/ui/LoadingScreen';
 
-const PrivateRoute = ({ children }) => {
-  const { user, loading } = useAuth();
+// Lazy load pages for better performance and smaller initial bundle
+const ChatDashboard = lazy(() => import('./pages/ChatDashboard'));
+const SettingsPage = lazy(() => import('./pages/SettingsPage'));
+const DeviceHistoryPage = lazy(() => import('./pages/DeviceHistoryPage'));
+const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
 
-  if (loading) {
+const PrivateRoute = ({ children }) => {
+  const { user, isCheckingAuth } = useAuth();
+
+  if (isCheckingAuth) {
     return <LoadingScreen message="Verifying your session..." />;
   }
 
@@ -22,9 +23,9 @@ const PrivateRoute = ({ children }) => {
 };
 
 const AdminRoute = ({ children }) => {
-  const { user, loading } = useAuth();
+  const { user, isCheckingAuth } = useAuth();
 
-  if (loading) {
+  if (isCheckingAuth) {
     return <LoadingScreen message="Verifying admin access..." />;
   }
 
@@ -35,9 +36,9 @@ const AdminRoute = ({ children }) => {
 };
 
 const AuthRoute = ({ children }) => {
-  const { user, loading } = useAuth();
+  const { user, isCheckingAuth } = useAuth();
 
-  if (loading) {
+  if (isCheckingAuth) {
     return <LoadingScreen message="Checking authentication..." />;
   }
 
@@ -62,44 +63,46 @@ function App() {
 
   return (
     <Router>
-      <Routes>
-        <Route path="/login" element={<AuthRoute><LoginPage /></AuthRoute>} />
-        <Route path="/signup" element={<AuthRoute><SignupPage /></AuthRoute>} />
-        
-        <Route path="/" element={
-          <PrivateRoute>
-            <AppProviders>
-              <ChatDashboard />
-            </AppProviders>
-          </PrivateRoute>
-        } />
-        
-        <Route path="/settings" element={
-          <PrivateRoute>
-             <AppProviders>
-              <SettingsPage />
-            </AppProviders>
-          </PrivateRoute>
-        } />
-        
-        <Route path="/settings/devices" element={
-          <PrivateRoute>
-             <AppProviders>
-              <DeviceHistoryPage />
-            </AppProviders>
-          </PrivateRoute>
-        } />
+      <Suspense fallback={<LoadingScreen message="Loading page..." />}>
+        <Routes>
+          <Route path="/login" element={<AuthRoute><LoginPage /></AuthRoute>} />
+          <Route path="/signup" element={<AuthRoute><SignupPage /></AuthRoute>} />
+          
+          <Route path="/" element={
+            <PrivateRoute>
+              <AppProviders>
+                <ChatDashboard />
+              </AppProviders>
+            </PrivateRoute>
+          } />
+          
+          <Route path="/settings" element={
+            <PrivateRoute>
+               <AppProviders>
+                <SettingsPage />
+              </AppProviders>
+            </PrivateRoute>
+          } />
+          
+          <Route path="/settings/devices" element={
+            <PrivateRoute>
+               <AppProviders>
+                <DeviceHistoryPage />
+              </AppProviders>
+            </PrivateRoute>
+          } />
 
-        <Route path="/admin" element={
-          <AdminRoute>
-            <AppProviders>
-              <AdminDashboard />
-            </AppProviders>
-          </AdminRoute>
-        } />
-        
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+          <Route path="/admin" element={
+            <AdminRoute>
+              <AppProviders>
+                <AdminDashboard />
+              </AppProviders>
+            </AdminRoute>
+          } />
+          
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Suspense>
     </Router>
   );
 }

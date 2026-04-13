@@ -120,7 +120,7 @@ export default function CreateGroupModal({ onClose }) {
                            className="accent-[var(--color-primary)] w-4 h-4 rounded border-[var(--color-border)]"
                          />
                          <div className="w-8 h-8 rounded-full bg-[var(--color-surface-600)] flex items-center justify-center overflow-hidden">
-                           {user.avatar ? <img src={user.avatar} /> : <span className="text-xs font-bold">{user.username.charAt(0).toUpperCase()}</span>}
+                           {user.avatar ? <img src={user.avatar} className="w-full h-full object-cover" /> : <span className="text-xs font-bold">{user.username.charAt(0).toUpperCase()}</span>}
                          </div>
                          <span className="text-sm font-medium">{user.username}</span>
                        </label>

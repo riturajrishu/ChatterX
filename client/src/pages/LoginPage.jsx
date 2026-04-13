@@ -70,7 +70,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="h-screen overflow-y-auto overflow-x-hidden gradient-auth flex flex-col items-center justify-start sm:justify-center p-4 py-10 relative">
+    <div className="h-[100dvh] overflow-y-auto overflow-x-hidden gradient-auth flex flex-col items-center justify-start sm:justify-center p-4 py-10 relative">
       
       {/* Decorative Floating Background Elements */}
       <div className="absolute top-[10%] left-[10%] w-[40vw] h-[40vw] max-w-[500px] max-h-[500px] bg-[var(--color-primary)] opacity-[0.15] rounded-full blur-[100px] pointer-events-none mix-blend-screen animate-pulse-soft"></div>
@@ -153,9 +153,9 @@ export default function LoginPage() {
         </form>
 
         {!needs2FA && (
-          <div className="mt-8 text-center text-sm text-text-secondary">
+          <div className="mt-8 text-center text-sm text-[var(--color-text-secondary)]">
              Don't have an account?{' '}
-            <Link to="/signup" className="text-primary hover:text-primary-hover font-medium transition-colors">
+            <Link to="/signup" className="text-[var(--color-primary)] hover:text-white font-medium transition-colors">
                Create one
             </Link>
           </div>

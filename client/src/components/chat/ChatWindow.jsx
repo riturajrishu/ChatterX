@@ -102,9 +102,7 @@ export default function ChatWindow({ onBack }) {
         
       if (unseenMessages.length > 0) {
          // Call the batch API
-         import('../../services/api').then(({ default: apiInstance }) => {
-           apiInstance.put(`/messages/${chatId}/seen-all`).catch(e => console.error(e));
-         });
+         api.put(`/messages/${chatId}/seen-all`).catch(e => console.error(e));
 
          // Also emit individual socket seen events for real-time blue tick updates
          if (socket) {
@@ -163,7 +161,7 @@ export default function ChatWindow({ onBack }) {
         <div className="flex items-center gap-3">
           <button 
             onClick={onBack}
-            className="md:hidden p-1 mr-1 text-[var(--color-text-secondary)] hover:text-white"
+            className="md:hidden p-1 text-[var(--color-text-secondary)] hover:text-white"
           >
             <ChevronLeft size={24} />
           </button>
@@ -208,7 +206,7 @@ export default function ChatWindow({ onBack }) {
          <div 
            ref={listRef}
            onScroll={handleScroll}
-           className="h-full overflow-y-auto px-4 py-4 z-10 relative flex flex-col gap-1"
+           className="h-full overflow-y-auto px-3 sm:px-4 py-4 z-10 relative flex flex-col gap-1"
          >
             {loadingMore && <div className="flex justify-center py-2"><Spinner size="sm"/></div>}
             
@@ -229,6 +227,7 @@ export default function ChatWindow({ onBack }) {
                   key={msg._id} 
                   message={msg} 
                   isOwn={msg.senderId?._id === user._id}
+                  isGroup={isGroup}
                   showAvatar={showAvatar}
                   onReply={() => setReplyMessage(msg)}
                   onDelete={(m) => setDeleteTarget(m)}

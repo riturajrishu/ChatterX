@@ -150,7 +150,7 @@ export default function ChatInput({ chatId, isGroup, replyMessage, onCancelReply
   };
 
   return (
-    <div className="bg-[var(--color-surface-800)] px-4 py-3 border-t border-[var(--color-border)] relative z-20">
+    <div className="bg-[var(--color-surface-800)] px-3 sm:px-4 py-3 border-t border-[var(--color-border)] relative z-20">
       
       {/* Reply Preview */}
       {replyMessage && (
@@ -167,7 +167,7 @@ export default function ChatInput({ chatId, isGroup, replyMessage, onCancelReply
 
       {/* Emoji Picker Popup */}
       {showEmoji && (
-        <div className="absolute bottom-full left-4 mb-2 z-50 animate-fade-in shadow-glass border border-[var(--color-border)] rounded-lg overflow-hidden">
+        <div className="absolute bottom-full left-0 sm:left-4 mb-2 z-50 animate-fade-in shadow-glass border border-[var(--color-border)] rounded-lg overflow-hidden max-w-[calc(100vw-1.5rem)]">
            <EmojiPicker onEmojiClick={onEmojiClick} theme="dark" skinTonesDisabled />
         </div>
       )}
