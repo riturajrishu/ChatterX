@@ -88,7 +88,7 @@ const startServer = async () => {
     const io = initializeSocket(server);
     app.set('io', io);
 
-    server.listen(PORT, () => {
+    server.listen(PORT, '0.0.0.0', () => {
       console.log(`\n🚀 Whispr server running on port ${PORT}`);
       console.log(`   Environment: ${process.env.NODE_ENV || 'development'}`);
       console.log(`   Client URL:  ${process.env.CLIENT_URL || 'http://localhost:5173'}\n`);

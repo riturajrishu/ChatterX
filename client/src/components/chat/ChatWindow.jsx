@@ -203,10 +203,10 @@ export default function ChatWindow({ onBack }) {
           </div>
         </div>
         
-        <div className="flex items-center gap-4 text-[var(--color-text-secondary)]">
-          <button onClick={() => handleCall(false)} className="hover:text-white transition-colors hidden sm:block"><Phone size={20} /></button>
-          <button onClick={() => handleCall(true)} className="hover:text-white transition-colors hidden sm:block"><Video size={20} /></button>
-          <button className="hover:text-white transition-colors"><MoreVertical size={20} /></button>
+        <div className="flex items-center gap-3 sm:gap-4 text-[var(--color-text-secondary)]">
+          <button onClick={() => handleCall(false)} className="hover:text-white transition-colors p-1"><Phone size={20} /></button>
+          <button onClick={() => handleCall(true)} className="hover:text-white transition-colors p-1"><Video size={20} /></button>
+          <button className="hover:text-white transition-colors p-1"><MoreVertical size={20} /></button>
         </div>
       </div>
 

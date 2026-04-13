@@ -65,8 +65,10 @@ export const useChatStore = create((set, get) => ({
       }
 
       // Also update lastMessage in the chat list
+      let chatExists = false;
       const updatedChats = state.chats.map(chat => {
         if (chat._id === chatId) {
+          chatExists = true;
           return {
             ...chat,
             lastMessage: {
@@ -80,10 +82,13 @@ export const useChatStore = create((set, get) => ({
         return chat;
       });
 
+      if (!chatExists) {
+        // Chat isn't loaded (completely new chat from a stranger), trigger a fetch async
+        setTimeout(() => get().fetchChats(), 100);
+      }
+
       // Sort chats: pinned first, then by updatedAt
       updatedChats.sort((a, b) => {
-        // Needs proper user pinned context to sort perfectly locally,
-        // but for now just sort by date. The server does pinned sorting on refetch.
         return new Date(b.updatedAt) - new Date(a.updatedAt);
       });
 

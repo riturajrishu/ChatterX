@@ -66,48 +66,42 @@ function App() {
   }, [checkAuth]);
 
   return (
-    <Router>
-      <Suspense fallback={<LoadingScreen message="Loading page..." />}>
-        <Routes>
-          <Route path="/login" element={<AuthRoute><LoginPage /></AuthRoute>} />
-          <Route path="/signup" element={<AuthRoute><SignupPage /></AuthRoute>} />
-          
-          <Route path="/" element={
-            <PrivateRoute>
-              <AppProviders>
+    <AppProviders>
+      <Router>
+        <Suspense fallback={<LoadingScreen message="Loading page..." />}>
+          <Routes>
+            <Route path="/login" element={<AuthRoute><LoginPage /></AuthRoute>} />
+            <Route path="/signup" element={<AuthRoute><SignupPage /></AuthRoute>} />
+            
+            <Route path="/" element={
+              <PrivateRoute>
                 <ChatDashboard />
-              </AppProviders>
-            </PrivateRoute>
-          } />
-          
-          <Route path="/settings" element={
-            <PrivateRoute>
-               <AppProviders>
+              </PrivateRoute>
+            } />
+            
+            <Route path="/settings" element={
+              <PrivateRoute>
                 <SettingsPage />
-              </AppProviders>
-            </PrivateRoute>
-          } />
-          
-          <Route path="/settings/devices" element={
-            <PrivateRoute>
-               <AppProviders>
+              </PrivateRoute>
+            } />
+            
+            <Route path="/settings/devices" element={
+              <PrivateRoute>
                 <DeviceHistoryPage />
-              </AppProviders>
-            </PrivateRoute>
-          } />
+              </PrivateRoute>
+            } />
 
-          <Route path="/admin" element={
-            <AdminRoute>
-              <AppProviders>
+            <Route path="/admin" element={
+              <AdminRoute>
                 <AdminDashboard />
-              </AppProviders>
-            </AdminRoute>
-          } />
-          
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </Suspense>
-    </Router>
+              </AdminRoute>
+            } />
+            
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </Suspense>
+      </Router>
+    </AppProviders>
   );
 }
 
