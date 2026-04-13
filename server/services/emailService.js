@@ -1,10 +1,13 @@
 const { google } = require('googleapis');
 
+/**
+ * Creates an OAuth2 client for Gmail API
+ */
 const createOAuth2Client = () => {
   const oauth2Client = new google.auth.OAuth2(
     process.env.GOOGLE_CLIENT_ID,
     process.env.GOOGLE_CLIENT_SECRET,
-    'https://developers.google.com/oauthplayground'
+    'https://developers.google.com/oauthplayground' // Default redirect URI for playground tokens
   );
 
   oauth2Client.setCredentials({
@@ -15,14 +18,24 @@ const createOAuth2Client = () => {
 };
 
 const sendSignedUpOTP = async (email, otp) => {
+  console.log('Starting Gmail REST API sendSignedUpOTP for:', email);
+  
   try {
     if (!process.env.GMAIL_REFRESH_TOKEN) {
-      console.error('GMAIL_REFRESH_TOKEN is missing from environment variables.');
-      throw new Error('Email service not configured.');
+      console.error('GMAIL_REFRESH_TOKEN is missing!');
+      throw new Error('Email service not configured - missing Refresh Token.');
     }
 
     const oauth2Client = createOAuth2Client();
     const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
+
+    // Sanitize fromEmail to remove potentially problematic quotes from .env
+    const fromEmail = (process.env.SMTP_USER || '').replace(/['"]/g, '');
+    
+    if (!fromEmail) {
+      console.error('SMTP_USER is missing or invalid for "From" address!');
+      throw new Error('Email "From" address is not configured.');
+    }
 
     // HTML email template
     const htmlContent = `
@@ -42,7 +55,6 @@ const sendSignedUpOTP = async (email, otp) => {
     `;
 
     // Build the email in RFC 2822 format
-    const fromEmail = process.env.SMTP_USER;
     const rawEmail = [
       `From: "Whispr Support" <${fromEmail}>`,
       `To: ${email}`,
@@ -53,26 +65,29 @@ const sendSignedUpOTP = async (email, otp) => {
       htmlContent,
     ].join('\r\n');
 
-    // Base64url encode the email
+    // Encode email to Base64url
     const encodedEmail = Buffer.from(rawEmail)
       .toString('base64')
       .replace(/\+/g, '-')
       .replace(/\//g, '_')
       .replace(/=+$/, '');
 
-    // Send via Gmail REST API (HTTPS, port 443 — no SMTP needed)
-    await gmail.users.messages.send({
+    console.log(`Calling Gmail API Users.messages.send for ${email}...`);
+    const result = await gmail.users.messages.send({
       userId: 'me',
       requestBody: {
         raw: encodedEmail,
       },
     });
 
-    console.log(`OTP email sent successfully to: ${email}`);
+    console.log('Gmail API Result:', result.status, result.statusText);
     return true;
   } catch (error) {
-    console.error('Email sending error:', error.message);
-    throw new Error('Could not send verification email. Please try again later.');
+    console.error('Gmail REST API error (Detailed):', error);
+    if (error.message.includes('invalid_grant')) {
+      throw new Error('Gmail service error: The Refresh Token has expired or is invalid. Please update your GMAIL_REFRESH_TOKEN.');
+    }
+    throw new Error('Could not send verification email: ' + error.message);
   }
 };
 

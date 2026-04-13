@@ -59,8 +59,8 @@ const requestSignupOTP = async (req, res, next) => {
 
     res.status(200).json({ message: 'OTP sent successfully to your email.' });
   } catch (error) {
-    console.error('OTP Error:', error);
-    res.status(500).json({ message: 'An error occurred while sending OTP' });
+    console.error('OTP Controller Error:', error);
+    next(error);
   }
 };
 

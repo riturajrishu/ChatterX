@@ -1,4 +1,19 @@
-require('dotenv').config();
+require('dotenv').config(); // Reloaded to pick up new tokens
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (err) => {
+  console.error('\n🔴 UNCAUGHT EXCEPTION! Shutting down...');
+  console.error(err.name, err.message);
+  console.error(err.stack);
+  process.exit(1);
+});
+
+// Handle unhandled rejections
+process.on('unhandledRejection', (err) => {
+  console.error('\n🔴 UNHANDLED REJECTION! Shutting down...');
+  console.error(err);
+  process.exit(1);
+});
 
 const express = require('express');
 const http = require('http');

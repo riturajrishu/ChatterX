@@ -13,6 +13,12 @@ const initializeFirebase = () => {
 
   try {
     const parsed = JSON.parse(serviceAccount);
+    
+    // Fix for private key newline formatting in some environments
+    if (parsed.private_key && typeof parsed.private_key === 'string') {
+      parsed.private_key = parsed.private_key.replace(/\\n/g, '\n');
+    }
+
     admin.initializeApp({
       credential: admin.credential.cert(parsed),
     });
