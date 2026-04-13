@@ -8,11 +8,13 @@ import ChatInput from './ChatInput';
 import Spinner from '../ui/Spinner';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
+import { useCall } from '../../context/CallContext';
 
 export default function ChatWindow({ onBack }) {
   const { user } = useAuth();
   const { selectedChat, messages, fetchMessages, hasMore, removeMessage } = useChatStore();
   const { socket } = useSocket();
+  const { initiateCall } = useCall();
   const [loadingMore, setLoadingMore] = useState(false);
   const [typingUsers, setTypingUsers] = useState({}); // userId -> username
   const [replyMessage, setReplyMessage] = useState(null);
@@ -132,6 +134,16 @@ export default function ChatWindow({ onBack }) {
 
   if (!selectedChat) return null;
 
+  const handleCall = (isVideo) => {
+    if (selectedChat.isGroup) {
+      return toast.error('Calls are currently only supported in 1-on-1 chats.');
+    }
+    const otherParticipant = selectedChat.participants.find(p => p._id !== user._id);
+    if (otherParticipant) {
+      initiateCall(otherParticipant._id, otherParticipant.username, isVideo);
+    }
+  };
+
   const isGroup = selectedChat.isGroup;
   let name, avatar, isOnline;
   
@@ -192,8 +204,8 @@ export default function ChatWindow({ onBack }) {
         </div>
         
         <div className="flex items-center gap-4 text-[var(--color-text-secondary)]">
-          <button className="hover:text-white transition-colors hidden sm:block"><Phone size={20} /></button>
-          <button className="hover:text-white transition-colors hidden sm:block"><Video size={20} /></button>
+          <button onClick={() => handleCall(false)} className="hover:text-white transition-colors hidden sm:block"><Phone size={20} /></button>
+          <button onClick={() => handleCall(true)} className="hover:text-white transition-colors hidden sm:block"><Video size={20} /></button>
           <button className="hover:text-white transition-colors"><MoreVertical size={20} /></button>
         </div>
       </div>

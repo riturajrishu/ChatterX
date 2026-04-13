@@ -200,6 +200,46 @@ const initializeSocket = (server) => {
       }
     });
 
+    // === WebRTC Calling Signaling ===
+    socket.on(EVENTS.CALL_USER, ({ userToCall, signalData, from, name, isVideo }) => {
+      const targetSockets = getSocketIdsByUserId(userToCall);
+      if (targetSockets.size === 0) {
+        socket.emit(EVENTS.CALL_REJECTED, { reason: 'User is offline' });
+        return;
+      }
+      targetSockets.forEach((sockId) => {
+        io.to(sockId).emit(EVENTS.INCOMING_CALL, { signal: signalData, from, name, isVideo });
+      });
+    });
+
+    socket.on(EVENTS.ANSWER_CALL, ({ to, signal }) => {
+      const targetSockets = getSocketIdsByUserId(to);
+      targetSockets.forEach((sockId) => {
+        io.to(sockId).emit(EVENTS.CALL_ACCEPTED, { signal });
+      });
+    });
+
+    socket.on(EVENTS.REJECT_CALL, ({ to }) => {
+      const targetSockets = getSocketIdsByUserId(to);
+      targetSockets.forEach((sockId) => {
+        io.to(sockId).emit(EVENTS.CALL_REJECTED, { reason: 'Busy' });
+      });
+    });
+
+    socket.on(EVENTS.END_CALL, ({ to }) => {
+      const targetSockets = getSocketIdsByUserId(to);
+      targetSockets.forEach((sockId) => {
+        io.to(sockId).emit(EVENTS.CALL_ENDED);
+      });
+    });
+
+    socket.on(EVENTS.ICE_CANDIDATE, ({ to, candidate }) => {
+      const targetSockets = getSocketIdsByUserId(to);
+      targetSockets.forEach((sockId) => {
+        io.to(sockId).emit(EVENTS.ICE_CANDIDATE, { candidate });
+      });
+    });
+
     // Disconnect
     socket.on(EVENTS.DISCONNECT, async () => {
       console.log(`User disconnected: ${userId} (socket: ${socket.id})`);

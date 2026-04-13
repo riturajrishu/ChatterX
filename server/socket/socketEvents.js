@@ -15,6 +15,19 @@ const SOCKET_EVENTS = {
   MESSAGE_SEEN_UPDATE: 'message_seen_update',
   MESSAGE_DELETED: 'message_deleted',
 
+  // WebRTC Signaling Client -> Server
+  CALL_USER: 'call_user',
+  ANSWER_CALL: 'answer_call',
+  REJECT_CALL: 'reject_call',
+  END_CALL: 'end_call',
+  ICE_CANDIDATE: 'ice_candidate',
+
+  // WebRTC Signaling Server -> Client
+  INCOMING_CALL: 'incoming_call',
+  CALL_ACCEPTED: 'call_accepted',
+  CALL_REJECTED: 'call_rejected',
+  CALL_ENDED: 'call_ended',
+
   // System
   CONNECTION: 'connection',
   DISCONNECT: 'disconnect',

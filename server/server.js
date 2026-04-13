@@ -45,6 +45,7 @@ app.set('trust proxy', 1);
 // ── Security & Parsing Middleware ──────────────────────────
 app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' },
+  crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' },
 }));
 
 app.use(cors({

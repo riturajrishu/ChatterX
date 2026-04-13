@@ -1,6 +1,8 @@
 import { lazy, Suspense, useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import { SocketProvider } from './context/SocketContext';
+import { CallProvider } from './context/CallContext';
 
 import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
@@ -49,7 +51,9 @@ const AuthRoute = ({ children }) => {
 const AppProviders = ({ children }) => {
   return (
       <SocketProvider>
-        {children}
+        <CallProvider>
+          {children}
+        </CallProvider>
       </SocketProvider>
   );
 };

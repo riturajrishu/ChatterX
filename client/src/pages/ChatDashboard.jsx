@@ -3,6 +3,7 @@ import { useChatStore } from '../context/ChatContext';
 import { useSocket } from '../context/SocketContext';
 import Sidebar from '../components/layout/Sidebar';
 import ChatWindow from '../components/chat/ChatWindow';
+import CallOverlay from '../components/call/CallOverlay';
 
 export default function ChatDashboard() {
   const { fetchChats, selectedChat, setSelectedChat, addMessage, updateMessageSeen, removeMessage } = useChatStore();
@@ -64,6 +65,9 @@ export default function ChatDashboard() {
 
   return (
     <div className="flex fixed inset-0 bg-[var(--color-surface-900)] overflow-hidden">
+      {/* Absolute fullscreen call overlay */}
+      <CallOverlay />
+
       {/* Sidebar - hidden on mobile if chat is active */}
       <div 
         className={`w-full md:w-[360px] lg:w-[400px] border-r border-[var(--color-border)] flex-shrink-0 bg-[var(--color-surface-800)] transition-all
