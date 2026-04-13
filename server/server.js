@@ -60,6 +60,25 @@ app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 // Rate limiter
 app.use('/api', globalLimiter);
 
+// Debug Sockets
+app.get('/api/debug-sockets', (req, res) => {
+  const { onlineUsers } = require('./socket/socketHandler');
+  const io = req.app.get('io');
+  
+  const connectedSockets = io ? Array.from(io.sockets.sockets.keys()) : [];
+  const mapData = {};
+  for (const [key, value] of onlineUsers.entries()) {
+    mapData[key] = Array.from(value);
+  }
+
+  res.json({
+    onlineUsersMap: mapData,
+    connectedSockets,
+    onlineUsersCount: onlineUsers.size,
+    socketsCount: connectedSockets.length
+  });
+});
+
 // ── API Routes ─────────────────────────────────────────────
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
