@@ -9,6 +9,7 @@ import api from '../services/api';
 
 export default function SignupPage() {
   const [formData, setFormData] = useState({
+    fullName: '',
     username: '',
     email: '',
     phoneNumber: '',
@@ -71,6 +72,7 @@ export default function SignupPage() {
   };
 
   const validateDetails = () => {
+    if (formData.fullName.trim().length < 2) return 'Please enter your full name';
     if (formData.username.length < 3) return 'Username must be at least 3 chars';
     if (usernameStatus === 'taken') return 'Please choose a different username. This one is taken.';
     if (!isEmailValid(formData.email)) return 'Please enter a valid genuine email address';
@@ -127,6 +129,7 @@ export default function SignupPage() {
     setOtpError('');
     try {
       const result = await signup({
+        fullName: formData.fullName,
         username: formData.username,
         email: formData.email,
         phoneNumber: formData.phoneNumber || undefined,
@@ -175,6 +178,16 @@ export default function SignupPage() {
 
         {!otpMode ? (
           <form onSubmit={handleRequestOTP} className="space-y-4 animate-fade-in">
+            <Input
+              name="fullName"
+              type="text"
+              label="Full Name"
+              placeholder="John Doe"
+              value={formData.fullName}
+              onChange={handleChange}
+              icon={User}
+              required
+            />
             <div className="relative">
               <Input
                 name="username"

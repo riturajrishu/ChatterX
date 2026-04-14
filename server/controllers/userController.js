@@ -12,10 +12,13 @@ const searchUsers = async (req, res, next) => {
     }
 
     const users = await User.find({
-      username: { $regex: q, $options: 'i' },
+      $or: [
+        { username: { $regex: q, $options: 'i' } },
+        { fullName: { $regex: q, $options: 'i' } }
+      ],
       _id: { $ne: req.user._id },
     })
-      .select('username avatar isOnline lastSeen')
+      .select('fullName username avatar isOnline lastSeen')
       .limit(20)
       .lean();
 
@@ -28,7 +31,7 @@ const searchUsers = async (req, res, next) => {
 // GET /api/users/:id
 const getUserProfile = async (req, res, next) => {
   try {
-    const user = await User.findById(req.params.id).select('username avatar isOnline lastSeen');
+    const user = await User.findById(req.params.id).select('fullName username avatar isOnline lastSeen');
     if (!user) {
       return res.status(404).json({ message: 'User not found.' });
     }
@@ -41,8 +44,12 @@ const getUserProfile = async (req, res, next) => {
 // PUT /api/users/profile
 const updateProfile = async (req, res, next) => {
   try {
-    const { username } = req.body;
+    const { fullName, username } = req.body;
     const updates = {};
+
+    if (fullName) {
+      updates.fullName = fullName;
+    }
 
     if (username) {
       const existing = await User.findOne({ username, _id: { $ne: req.user._id } });
@@ -61,7 +68,7 @@ const updateProfile = async (req, res, next) => {
     }
 
     const user = await User.findByIdAndUpdate(req.user._id, updates, { new: true }).select(
-      'username email avatar totpEnabled'
+      'fullName username email avatar totpEnabled'
     );
     res.json({ user });
   } catch (error) {

@@ -72,10 +72,10 @@ export default function Sidebar({ onChatSelect }) {
             <img src={user.avatar} alt="You" className="w-10 h-10 rounded-full object-cover" />
           ) : (
             <div className="w-10 h-10 rounded-full bg-[var(--color-primary-light)] text-[var(--color-primary)] flex items-center justify-center font-bold text-lg">
-              {user?.username?.charAt(0).toUpperCase()}
+              {(user?.fullName || user?.username || '?').charAt(0).toUpperCase()}
             </div>
           )}
-          <span className="font-semibold">{user?.username}</span>
+          <span className="font-semibold">{user?.fullName || user?.username}</span>
         </div>
         
         <div className="flex items-center gap-2 text-[var(--color-text-secondary)]">
@@ -165,7 +165,7 @@ export default function Sidebar({ onChatSelect }) {
                 avatar = chat.groupId?.avatar;
               } else {
                 other = chat.participants.find(p => p._id !== user?._id);
-                name = other?.username || 'Unknown';
+                name = other?.fullName || other?.username || 'Unknown';
                 avatar = other?.avatar;
               }
 

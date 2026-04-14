@@ -69,7 +69,7 @@ const signup = async (req, res, next) => {
   try {
     if (!validateRequest(req, res)) return;
 
-    const { username, email, password, phoneNumber, otp } = req.body;
+    const { fullName, username, email, password, phoneNumber, otp } = req.body;
 
     if (!otp) {
       return res.status(400).json({ message: 'OTP is required to complete registration.' });
@@ -88,7 +88,7 @@ const signup = async (req, res, next) => {
     }
 
     const hashedPassword = await authService.hashPassword(password);
-    const user = await User.create({ username, email, password: hashedPassword, phoneNumber });
+    const user = await User.create({ fullName, username, email, password: hashedPassword, phoneNumber });
 
     // OTP was successfully used, so purge it
     await VerificationOTP.deleteMany({ email });
@@ -100,6 +100,7 @@ const signup = async (req, res, next) => {
     res.status(201).json({
       user: {
         _id: user._id,
+        fullName: user.fullName,
         username: user.username,
         email: user.email,
         avatar: user.avatar,
@@ -198,7 +199,7 @@ const getMe = async (req, res, next) => {
     if (!req.user) {
       return res.status(200).json({ user: null });
     }
-    const user = await User.findById(req.user._id).select('username email avatar totpEnabled isOnline lastSeen pinnedChats role');
+    const user = await User.findById(req.user._id).select('fullName username email avatar totpEnabled isOnline lastSeen pinnedChats role');
     if (!user) {
       return res.status(200).json({ user: null });
     }
@@ -241,14 +242,16 @@ const googleLogin = async (req, res, next) => {
       }
 
       user = await User.create({
+        fullName: name,
         username,
         email,
         googleId,
         avatar: picture,
       });
     } else if (!user.googleId) {
-      // Link Google ID if user registered with email but without Google
+      // Link Google ID
       user.googleId = googleId;
+      if (!user.fullName) user.fullName = name;
       if (!user.avatar) user.avatar = picture;
       await user.save();
     }
@@ -290,6 +293,7 @@ const googleLogin = async (req, res, next) => {
 
 // Validation rules
 const signupValidation = [
+  body('fullName').trim().notEmpty().withMessage('Full name is required.').isLength({ max: 50 }).withMessage('Full name too long.'),
   body('username').trim().isLength({ min: 3, max: 30 }).withMessage('Username must be 3–30 characters.'),
   body('email').isEmail().normalizeEmail().withMessage('Valid email is required.'),
   body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters.'),

@@ -11,6 +11,7 @@ export default function SettingsPage() {
   const { user, setUser, logout, logoutAll } = useAuth();
   const navigate = useNavigate();
   
+  const [fullName, setFullName] = useState(user?.fullName || '');
   const [username, setUsername] = useState(user?.username || '');
   const [isUpdating, setIsUpdating] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -23,16 +24,19 @@ export default function SettingsPage() {
   const fileInputRef = useRef(null);
 
   useEffect(() => {
-    if (user) setUsername(user.username);
+    if (user) {
+      setFullName(user.fullName || '');
+      setUsername(user.username);
+    }
   }, [user]);
 
   const handleUpdateProfile = async (e) => {
     e.preventDefault();
-    if (username === user.username) return;
+    if (fullName === user.fullName && username === user.username) return;
     
     setIsUpdating(true);
     try {
-      const { data } = await api.put('/users/profile', { username });
+      const { data } = await api.put('/users/profile', { fullName, username });
       setUser(data.user);
       toast.success('Profile updated');
     } catch (error) {
@@ -132,7 +136,7 @@ export default function SettingsPage() {
                     ) : user?.avatar ? (
                       <img src={user.avatar} className="w-full h-full object-cover" />
                     ) : (
-                      <span className="text-3xl font-bold text-[var(--color-text-secondary)]">{user?.username?.charAt(0).toUpperCase()}</span>
+                      <span className="text-3xl font-bold text-[var(--color-text-secondary)]">{(user?.fullName || user?.username || '?').charAt(0).toUpperCase()}</span>
                     )}
                   </div>
                   
@@ -157,12 +161,18 @@ export default function SettingsPage() {
                   className="bg-[var(--color-surface-900)] opacity-70"
                 />
                 <Input 
+                  label="Full Name" 
+                  value={fullName} 
+                  onChange={(e) => setFullName(e.target.value)} 
+                  placeholder="Enter your full name"
+                />
+                <Input 
                   label="Username" 
                   value={username} 
                   onChange={(e) => setUsername(e.target.value)} 
                 />
                 <div className="flex justify-end pt-2">
-                  <Button type="submit" isLoading={isUpdating} disabled={username === user?.username}>
+                  <Button type="submit" isLoading={isUpdating} disabled={fullName === user?.fullName && username === user?.username}>
                     Save Changes
                   </Button>
                 </div>

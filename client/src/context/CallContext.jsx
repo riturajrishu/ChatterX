@@ -60,17 +60,27 @@ export const CallProvider = ({ children }) => {
   };
 
   const handleUserPublished = async (remoteUser, mediaType) => {
-    await clientRef.current.subscribe(remoteUser, mediaType);
-    if (mediaType === 'video') {
-      setRemoteStream(remoteUser.videoTrack);
-    }
-    if (mediaType === 'audio') {
-      remoteUser.audioTrack.play();
+    if (!clientRef.current) return;
+    
+    try {
+      await clientRef.current.subscribe(remoteUser, mediaType);
+      console.log(`Subscribed to remote ${mediaType} track`);
+      
+      if (mediaType === 'video') {
+         setRemoteStream(remoteUser.videoTrack);
+      }
+      if (mediaType === 'audio') {
+         remoteUser.audioTrack?.play();
+      }
+    } catch (err) {
+      console.error('Subscribe error:', err);
     }
   };
 
-  const handleUserUnpublished = (remoteUser) => {
-    setRemoteStream(null);
+  const handleUserUnpublished = (remoteUser, mediaType) => {
+    if (mediaType === 'video') {
+       setRemoteStream(null);
+    }
   };
 
   // Socket Listeners for Signaling
@@ -157,13 +167,23 @@ export const CallProvider = ({ children }) => {
           setIsVideoMuted(true);
       }
 
-      await client.publish([audioTrack, videoTrack]);
+      // Check if tracks are valid before publishing
+      if (client.connectionState === 'CONNECTED') {
+         await client.publish([audioTrack, videoTrack]);
+      } else {
+         console.warn('Client not connected yet, waiting to publish...');
+         client.on('connection-state-change', async (curState) => {
+           if (curState === 'CONNECTED') {
+             await client.publish([audioTrack, videoTrack]);
+           }
+         });
+      }
 
       // Notify remote user
       socket.emit('call_user', {
         userToCall,
         from: user._id,
-        name: user.username,
+        name: user.fullName || user.username,
         isVideo: withVideo,
         channelName
       });
@@ -208,6 +228,10 @@ export const CallProvider = ({ children }) => {
       socket.emit('answer_call', { to: remoteUser });
     } catch (e) {
       console.error('Answer Call Error:', e);
+      // Don't toast if it was a user abort or familiar error
+      if (e.message !== 'PERMISSION_DENIED') {
+        toast.error('Could not access camera/microphone');
+      }
       socket.emit('reject_call', { to: remoteUser });
       cleanupCall();
     }

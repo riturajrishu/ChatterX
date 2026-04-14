@@ -12,7 +12,7 @@ import { useCall } from '../../context/CallContext';
 
 export default function ChatWindow({ onBack }) {
   const { user } = useAuth();
-  const { selectedChat, messages, fetchMessages, hasMore, removeMessage } = useChatStore();
+  const { selectedChat, messages, fetchMessages, hasMore, removeMessage, onlineUsers } = useChatStore();
   const { socket } = useSocket();
   const { initiateCall } = useCall();
   const [loadingMore, setLoadingMore] = useState(false);
@@ -140,7 +140,7 @@ export default function ChatWindow({ onBack }) {
     }
     const otherParticipant = selectedChat.participants.find(p => p._id !== user._id);
     if (otherParticipant) {
-      initiateCall(otherParticipant._id, otherParticipant.username, isVideo);
+      initiateCall(otherParticipant._id, otherParticipant.fullName || otherParticipant.username, isVideo);
     }
   };
 
@@ -152,9 +152,10 @@ export default function ChatWindow({ onBack }) {
     avatar = selectedChat.groupId?.avatar;
   } else {
     const other = selectedChat.participants.find(p => p._id !== user._id);
-    name = other?.username || 'Unknown';
+    name = other?.fullName || other?.username || 'Unknown';
     avatar = other?.avatar;
-    isOnline = other?.isOnline;
+    // Derive real-time status from the global onlineUsers set
+    isOnline = other ? onlineUsers.has(other._id) : false;
   }
 
   const typingNames = Object.values(typingUsers);

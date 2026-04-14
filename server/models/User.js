@@ -10,6 +10,11 @@ const userSchema = new mongoose.Schema(
       minlength: 3,
       maxlength: 30,
     },
+    fullName: {
+      type: String,
+      trim: true,
+      maxlength: 50,
+    },
     email: {
       type: String,
       required: [true, 'Email is required'],
@@ -92,5 +97,12 @@ const userSchema = new mongoose.Schema(
     },
   }
 );
+
+userSchema.pre('save', function(next) {
+  if (!this.fullName || this.fullName.trim() === '') {
+    this.fullName = this.username;
+  }
+  next();
+});
 
 module.exports = mongoose.model('User', userSchema);
