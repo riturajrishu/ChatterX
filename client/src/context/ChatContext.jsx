@@ -6,11 +6,24 @@ export const useChatStore = create((set, get) => ({
   selectedChat: null,
   messages: {}, // maps chatId to array of messages
   hasMore: {}, // maps chatId to boolean
+  onlineUsers: new Set(), // Set of online user IDs
   loading: false,
   error: null,
 
   setChats: (chats) => set({ chats }),
   setSelectedChat: (chat) => set({ selectedChat: chat }),
+  
+  setOnlineUsers: (userIds) => set({ onlineUsers: new Set(userIds) }),
+  
+  updateUserPresence: (userId, isOnline) => set((state) => {
+    const newOnlineUsers = new Set(state.onlineUsers);
+    if (isOnline) {
+      newOnlineUsers.add(userId);
+    } else {
+      newOnlineUsers.delete(userId);
+    }
+    return { onlineUsers: newOnlineUsers };
+  }),
   
   fetchChats: async () => {
     set({ loading: true, error: null });
@@ -49,22 +62,24 @@ export const useChatStore = create((set, get) => ({
       
       let newMessages;
       if (message.tempId) {
-        // If this message corresponds to an optimistic one
-        const tempExists = currentMessages.some(m => m._id === message.tempId);
-        if (tempExists) {
-          newMessages = currentMessages.map(m => m._id === message.tempId ? { ...message, pending: false } : m);
+        // Optimistic match: replace temp with real message
+        const isAlreadyUpdated = currentMessages.some(m => m._id === message._id);
+        if (isAlreadyUpdated) return state; // Avoid double-adding
+
+        const tempIdx = currentMessages.findIndex(m => m._id === message.tempId);
+        if (tempIdx > -1) {
+          newMessages = [...currentMessages];
+          newMessages[tempIdx] = { ...message, pending: false };
         } else {
-          // If we somehow didn't have the temp message, just append
-          if (currentMessages.some(m => m._id === message._id)) return state;
-          newMessages = [...currentMessages, message];
+          newMessages = [...currentMessages, { ...message, pending: false }];
         }
       } else {
-        // Deduplicate by _id
+        // Direct receive
         if (currentMessages.some(m => m._id === message._id)) return state;
         newMessages = [...currentMessages, message];
       }
 
-      // Also update lastMessage in the chat list
+      // Fast chat list update
       let chatExists = false;
       const updatedChats = state.chats.map(chat => {
         if (chat._id === chatId) {
@@ -74,23 +89,21 @@ export const useChatStore = create((set, get) => ({
             lastMessage: {
               text: message.text || '📎 Attachment',
               senderId: message.senderId._id || message.senderId,
-              timestamp: message.timestamp
+              timestamp: message.timestamp || new Date().toISOString()
             },
-            updatedAt: message.timestamp
+            updatedAt: message.timestamp || new Date().toISOString()
           };
         }
         return chat;
       });
 
+      // Non-blocking fetch for unknown chats
       if (!chatExists) {
-        // Chat isn't loaded (completely new chat from a stranger), trigger a fetch async
-        setTimeout(() => get().fetchChats(), 100);
+        get().fetchChats();
       }
 
-      // Sort chats: pinned first, then by updatedAt
-      updatedChats.sort((a, b) => {
-        return new Date(b.updatedAt) - new Date(a.updatedAt);
-      });
+      // Reorder chats (O(n) but n is small enough for frontend)
+      updatedChats.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
 
       return {
         messages: { ...state.messages, [chatId]: newMessages },

@@ -8,7 +8,7 @@ import CreateGroupModal from '../modals/CreateGroupModal';
 
 export default function Sidebar({ onChatSelect }) {
   const { user, logout } = useAuth();
-  const { chats, selectedChat, setSelectedChat, togglePin } = useChatStore();
+  const { chats, selectedChat, setSelectedChat, togglePin, onlineUsers } = useChatStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -141,7 +141,7 @@ export default function Sidebar({ onChatSelect }) {
                          <span className="font-bold">{resultUser.username.charAt(0).toUpperCase()}</span>
                        )}
                      </div>
-                     {resultUser.isOnline && (
+                     {onlineUsers.has(resultUser._id) && (
                        <div className="absolute bottom-0 right-0 w-3 h-3 bg-[var(--color-success)] border-2 border-[var(--color-surface-800)] rounded-full"></div>
                      )}
                   </div>
@@ -189,7 +189,7 @@ export default function Sidebar({ onChatSelect }) {
                          <span className="font-bold">{name.charAt(0).toUpperCase()}</span>
                        )}
                      </div>
-                     {!isGroup && isOnline && (
+                     {!isGroup && onlineUsers.has(other?._id) && (
                        <div className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-[var(--color-success)] border-2 border-[var(--color-surface-800)] rounded-full"></div>
                      )}
                   </div>

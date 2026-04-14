@@ -14,6 +14,7 @@ const SOCKET_EVENTS = {
   TYPING_DISPLAY: 'typing_display',
   MESSAGE_SEEN_UPDATE: 'message_seen_update',
   MESSAGE_DELETED: 'message_deleted',
+  ONLINE_USERS: 'online_users',
 
   // WebRTC Signaling Client -> Server
   CALL_USER: 'call_user',

@@ -75,7 +75,11 @@ const initializeSocket = (server) => {
     // Update user status
     User.findByIdAndUpdate(userId, { isOnline: true }).catch(console.error);
 
-    // Broadcast online status
+    // Send initial list of online users to the newly connected user
+    const currentOnlineUserIds = Array.from(onlineUsers.keys());
+    socket.emit(EVENTS.ONLINE_USERS, currentOnlineUserIds);
+
+    // Broadcast online status to others
     socket.broadcast.emit(EVENTS.USER_ONLINE, { userId });
 
     // Auto-join user's chat rooms
@@ -107,8 +111,51 @@ const initializeSocket = (server) => {
         const chat = await Chat.findById(chatId);
         if (!chat || !chat.participants.map(String).includes(userId)) return;
 
-        // Dynamically force all online sockets of all participants to join this room 
-        // Handles the edge case where a new chat was created but the recipient hasn't refreshed
+        // DB Save
+        const message = await Message.create({
+          chatId,
+          senderId: userId,
+          text: text || '',
+          fileUrl: fileUrl || '',
+          replyTo: replyTo || null,
+          isAnonymous: chat.isGroup ? !!isAnonymous : false,
+          seenBy: [userId],
+        });
+
+        // Fast Populate & Emit
+        // We populate manually or with a lean query as soon as save is done
+        const populated = await Message.findById(message._id)
+          .populate('senderId', 'username avatar')
+          .populate('replyTo', 'text senderId')
+          .lean();
+
+        // INSTANT EMIT to room
+        io.to(chatId).emit(EVENTS.RECEIVE_MESSAGE, {
+          ...populated,
+          chatId,
+          tempId,
+        });
+
+        // BACKGROUND TASKS (Fire and forget, no 'await' here to block emitting)
+        chatService.updateLastMessage(
+          chatId,
+          text || (fileUrl ? '📎 Attachment' : ''),
+          userId
+        ).catch(err => console.error('Error updating last message:', err));
+
+        // Background Push Notifications
+        chat.participants.forEach((participantId) => {
+          const pid = participantId.toString();
+          if (pid !== userId && !isUserOnline(pid)) {
+            const senderName = isAnonymous && chat.isGroup ? 'Anonymous' : socket.user.username;
+            sendPushNotification(pid, senderName, text || '📎 Attachment', {
+              chatId,
+              type: 'message',
+            }).catch(err => console.error('Push notification error:', err));
+          }
+        });
+
+        // Dynamically force online sockets to join (Async)
         chat.participants.forEach((participantId) => {
            const pid = participantId.toString();
            const userSockets = onlineUsers.get(pid);
@@ -120,45 +167,6 @@ const initializeSocket = (server) => {
            }
         });
 
-        const message = await Message.create({
-          chatId,
-          senderId: userId,
-          text: text || '',
-          fileUrl: fileUrl || '',
-          replyTo: replyTo || null,
-          isAnonymous: chat.isGroup ? !!isAnonymous : false,
-          seenBy: [userId],
-        });
-
-        await chatService.updateLastMessage(
-          chatId,
-          text || (fileUrl ? '📎 Attachment' : ''),
-          userId
-        );
-
-        const populated = await Message.findById(message._id)
-          .populate('senderId', 'username avatar')
-          .populate('replyTo', 'text senderId')
-          .lean();
-
-        // Send to everyone in the room
-        io.to(chatId).emit(EVENTS.RECEIVE_MESSAGE, {
-          ...populated,
-          chatId,
-          tempId,
-        });
-
-        // Send push notifications to offline participants
-        chat.participants.forEach(async (participantId) => {
-          const pid = participantId.toString();
-          if (pid !== userId && !isUserOnline(pid)) {
-            const senderName = isAnonymous && chat.isGroup ? 'Anonymous' : socket.user.username;
-            sendPushNotification(pid, senderName, text || '📎 Attachment', {
-              chatId,
-              type: 'message',
-            });
-          }
-        });
       } catch (error) {
         socket.emit(EVENTS.ERROR, { message: 'Failed to send message.' });
       }

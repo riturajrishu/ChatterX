@@ -52,14 +52,32 @@ export default function ChatDashboard() {
       removeMessage(chatId, messageId);
     };
 
+    const handleOnlineUsers = (userIds) => {
+      useChatStore.getState().setOnlineUsers(userIds);
+    };
+
+    const handleUserOnline = ({ userId }) => {
+      useChatStore.getState().updateUserPresence(userId, true);
+    };
+
+    const handleUserOffline = ({ userId }) => {
+      useChatStore.getState().updateUserPresence(userId, false);
+    };
+
     socket.on('receive_message', handleReceiveMessage);
     socket.on('message_seen_update', handleMessageSeen);
     socket.on('message_deleted', handleMessageDeleted);
+    socket.on('online_users', handleOnlineUsers);
+    socket.on('user_online', handleUserOnline);
+    socket.on('user_offline', handleUserOffline);
 
     return () => {
       socket.off('receive_message', handleReceiveMessage);
       socket.off('message_seen_update', handleMessageSeen);
       socket.off('message_deleted', handleMessageDeleted);
+      socket.off('online_users', handleOnlineUsers);
+      socket.off('user_online', handleUserOnline);
+      socket.off('user_offline', handleUserOffline);
     };
   }, [socket, isConnected, addMessage, updateMessageSeen, removeMessage, fetchChats]);
 
