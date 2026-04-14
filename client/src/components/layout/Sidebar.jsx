@@ -158,16 +158,15 @@ export default function Sidebar({ onChatSelect }) {
           <div className="py-1">
             {chats.map(chat => {
               const isGroup = chat.isGroup;
-              let name, avatar, isOnline;
+              let name, avatar, other;
               
               if (isGroup) {
                 name = chat.groupId?.name || 'Group';
                 avatar = chat.groupId?.avatar;
               } else {
-                const other = chat.participants.find(p => p._id !== user._id);
+                other = chat.participants.find(p => p._id !== user?._id);
                 name = other?.username || 'Unknown';
                 avatar = other?.avatar;
-                isOnline = other?.isOnline;
               }
 
               const isPinned = user.pinnedChats?.includes(chat._id);
