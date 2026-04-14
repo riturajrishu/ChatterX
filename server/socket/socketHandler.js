@@ -201,21 +201,21 @@ const initializeSocket = (server) => {
     });
 
     // === WebRTC Calling Signaling ===
-    socket.on(EVENTS.CALL_USER, ({ userToCall, signalData, from, name, isVideo }) => {
+    socket.on(EVENTS.CALL_USER, ({ userToCall, from, name, isVideo, channelName }) => {
       const targetSockets = getSocketIdsByUserId(userToCall);
       if (targetSockets.size === 0) {
         socket.emit(EVENTS.CALL_REJECTED, { reason: 'User is offline' });
         return;
       }
       targetSockets.forEach((sockId) => {
-        io.to(sockId).emit(EVENTS.INCOMING_CALL, { signal: signalData, from, name, isVideo });
+        io.to(sockId).emit(EVENTS.INCOMING_CALL, { from, name, isVideo, channelName });
       });
     });
 
-    socket.on(EVENTS.ANSWER_CALL, ({ to, signal }) => {
+    socket.on(EVENTS.ANSWER_CALL, ({ to }) => {
       const targetSockets = getSocketIdsByUserId(to);
       targetSockets.forEach((sockId) => {
-        io.to(sockId).emit(EVENTS.CALL_ACCEPTED, { signal });
+        io.to(sockId).emit(EVENTS.CALL_ACCEPTED);
       });
     });
 
@@ -233,12 +233,6 @@ const initializeSocket = (server) => {
       });
     });
 
-    socket.on(EVENTS.ICE_CANDIDATE, ({ to, candidate }) => {
-      const targetSockets = getSocketIdsByUserId(to);
-      targetSockets.forEach((sockId) => {
-        io.to(sockId).emit(EVENTS.ICE_CANDIDATE, { candidate });
-      });
-    });
 
     // Disconnect
     socket.on(EVENTS.DISCONNECT, async () => {

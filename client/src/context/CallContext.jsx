@@ -1,6 +1,8 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
+import AgoraRTC from 'agora-rtc-sdk-ng';
 import { useSocket } from './SocketContext';
 import { useAuth } from './AuthContext';
+import api from '../services/api';
 import toast from 'react-hot-toast';
 
 const CallContext = createContext();
@@ -9,115 +11,89 @@ export const useCall = () => {
   return useContext(CallContext);
 };
 
+// Agora App ID from environment variable
+const AGORA_APP_ID = import.meta.env.VITE_AGORA_APP_ID;
+
 export const CallProvider = ({ children }) => {
   const { socket, isConnected } = useSocket();
   const { user } = useAuth();
 
   const [callState, setCallState] = useState('idle'); // 'idle', 'dialing', 'incoming', 'active'
-  const [incomingCall, setIncomingCall] = useState(null);
   const [callerName, setCallerName] = useState('');
-  const [remoteUser, setRemoteUser] = useState(null); // The other person ID
+  const [remoteUser, setRemoteUser] = useState(null); 
   const [isVideo, setIsVideo] = useState(false);
   
-  const [localStream, setLocalStream] = useState(null);
-  const [remoteStream, setRemoteStream] = useState(null);
+  const [localStream, setLocalStream] = useState(null); // Actually local tracks in Agora
+  const [remoteStream, setRemoteStream] = useState(null); // Remote tracks
   
   const [isMicMuted, setIsMicMuted] = useState(false);
   const [isVideoMuted, setIsVideoMuted] = useState(false);
+  const [isSpeakerOn, setIsSpeakerOn] = useState(true);
 
-  const pcRef = useRef(null);
-  const localStreamRef = useRef(null);
-  const iceCandidatesQueue = useRef([]); // Buffer for candidates received before remote description
+  // Agora Refs
+  const clientRef = useRef(null);
+  const localAudioTrackRef = useRef(null);
+  const localVideoTrackRef = useRef(null);
+  const channelRef = useRef(null);
 
-  // ICE Servers Configuration
-  const rtcConfig = {
-    iceServers: [
-      { urls: 'stun:stun.l.google.com:19302' },
-      { urls: 'stun:global.stun.twilio.com:3478' }
-    ]
-  };
-
-  const cleanupCall = () => {
-    if (pcRef.current) {
-      pcRef.current.close();
-      pcRef.current = null;
+  const cleanupCall = async () => {
+    if (localAudioTrackRef.current) {
+      localAudioTrackRef.current.close();
+      localAudioTrackRef.current = null;
     }
-    if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach(track => track.stop());
-      localStreamRef.current = null;
+    if (localVideoTrackRef.current) {
+      localVideoTrackRef.current.close();
+      localVideoTrackRef.current = null;
     }
+    if (clientRef.current) {
+      await clientRef.current.leave();
+      clientRef.current = null;
+    }
+
     setLocalStream(null);
     setRemoteStream(null);
     setCallState('idle');
-    setIncomingCall(null);
     setRemoteUser(null);
     setIsMicMuted(false);
     setIsVideoMuted(false);
-    iceCandidatesQueue.current = [];
+    channelRef.current = null;
   };
 
-  const createPeerConnection = (otherUserId) => {
-    const pc = new RTCPeerConnection(rtcConfig);
-
-    pc.onicecandidate = (event) => {
-      if (event.candidate && socket) {
-        socket.emit('ice_candidate', { to: otherUserId, candidate: event.candidate });
-      }
-    };
-
-    pc.ontrack = (event) => {
-      setRemoteStream(event.streams[0]);
-    };
-
-    pc.onconnectionstatechange = () => {
-      if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
-        endCall();
-      }
-    };
-
-    pcRef.current = pc;
-    return pc;
-  };
-
-  const processIceQueue = async () => {
-    if (pcRef.current && pcRef.current.remoteDescription) {
-      while (iceCandidatesQueue.current.length > 0) {
-        const candidate = iceCandidatesQueue.current.shift();
-        try {
-           await pcRef.current.addIceCandidate(new RTCIceCandidate(candidate));
-        } catch (e) {
-           console.error('Error adding delayed ice candidate', e);
-        }
-      }
+  const handleUserPublished = async (remoteUser, mediaType) => {
+    await clientRef.current.subscribe(remoteUser, mediaType);
+    if (mediaType === 'video') {
+      setRemoteStream(remoteUser.videoTrack);
+    }
+    if (mediaType === 'audio') {
+      remoteUser.audioTrack.play();
     }
   };
 
-  // Socket Listeners
+  const handleUserUnpublished = (remoteUser) => {
+    setRemoteStream(null);
+  };
+
+  // Socket Listeners for Signaling
   useEffect(() => {
     if (!socket || !isConnected || !user) return;
 
-    socket.on('incoming_call', async ({ signal, from, name, isVideo: callIsVideo }) => {
+    socket.on('incoming_call', async ({ from, name, isVideo: callIsVideo, channelName }) => {
       if (callState !== 'idle') {
-        socket.emit('reject_call', { to: from });
+        socket.emit('reject_call', { to: from, reason: 'busy' });
         return;
       }
-      setIncomingCall(signal);
       setRemoteUser(from);
       setCallerName(name);
       setIsVideo(callIsVideo);
+      channelRef.current = channelName;
       setCallState('incoming');
     });
 
-    socket.on('call_accepted', async ({ signal }) => {
-      setCallState('active');
-      if (pcRef.current) {
-        try {
-          await pcRef.current.setRemoteDescription(new RTCSessionDescription(signal));
-          processIceQueue();
-        } catch (error) {
-          console.error("Error setting remote description:", error);
-          endCall();
-        }
+    socket.on('call_accepted', async () => {
+      // The person who initiated the call will receive this
+      if (callState === 'dialing') {
+          setCallState('active');
+          toast.success('Call connected');
       }
     });
 
@@ -131,86 +107,107 @@ export const CallProvider = ({ children }) => {
       cleanupCall();
     });
 
-    socket.on('ice_candidate', async ({ candidate }) => {
-      if (pcRef.current) {
-        if (pcRef.current.remoteDescription) {
-           try {
-             await pcRef.current.addIceCandidate(new RTCIceCandidate(candidate));
-           } catch(e) {
-             console.error("Error adding ice candidate:", e);
-           }
-        } else {
-           iceCandidatesQueue.current.push(candidate);
-        }
-      }
-    });
-
     return () => {
       socket.off('incoming_call');
       socket.off('call_accepted');
       socket.off('call_rejected');
       socket.off('call_ended');
-      socket.off('ice_candidate');
     };
   }, [socket, isConnected, user, callState]);
 
-  // Actions
-  const initMedia = async (video) => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video, audio: true });
-      setLocalStream(stream);
-      localStreamRef.current = stream;
-      return stream;
-    } catch (error) {
-      console.error('Error accessing media devices', error);
-      toast.error('Could not access Camera or Microphone. Please check permissions.');
-      throw error;
-    }
-  };
-
   const initiateCall = async (userToCall, name, withVideo = true) => {
     try {
-      const stream = await initMedia(withVideo);
+      if (!AGORA_APP_ID) {
+        toast.error('Agora App ID not configured');
+        return;
+      }
+
       setRemoteUser(userToCall);
       setCallerName(name);
       setIsVideo(withVideo);
       setCallState('dialing');
 
-      const pc = createPeerConnection(userToCall);
-      stream.getTracks().forEach(track => pc.addTrack(track, stream));
+      // Generate unique channel name
+      const channelName = [user._id, userToCall].sort().join('_');
+      channelRef.current = channelName;
 
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
+      // Get Token
+      const response = await api.get(`/call/token?channelName=${channelName}&role=publisher`);
+      const { token, uid } = response.data;
 
+      // Initialize Agora Client
+      const client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
+      clientRef.current = client;
+
+      // Event handlers
+      client.on('user-published', handleUserPublished);
+      client.on('user-unpublished', handleUserUnpublished);
+
+      await client.join(AGORA_APP_ID, channelName, token, uid);
+
+      // Create tracks
+      const [audioTrack, videoTrack] = await AgoraRTC.createMicrophoneAndCameraTracks();
+      localAudioTrackRef.current = audioTrack;
+      localVideoTrackRef.current = videoTrack;
+      
+      setLocalStream({ videoTrack, audioTrack });
+
+      if (!withVideo) {
+          videoTrack.setEnabled(false);
+          setIsVideoMuted(true);
+      }
+
+      await client.publish([audioTrack, videoTrack]);
+
+      // Notify remote user
       socket.emit('call_user', {
         userToCall,
-        signalData: offer,
         from: user._id,
         name: user.username,
-        isVideo: withVideo
+        isVideo: withVideo,
+        channelName
       });
+
     } catch (e) {
+      console.error('Initiate Call Error:', e);
+      toast.error('Failed to start call');
       cleanupCall();
     }
   };
 
   const answerCall = async () => {
-    if (!incomingCall || !remoteUser) return;
+    if (!remoteUser || !channelRef.current) return;
     try {
-      const stream = await initMedia(isVideo);
       setCallState('active');
 
-      const pc = createPeerConnection(remoteUser);
-      stream.getTracks().forEach(track => pc.addTrack(track, stream));
+      // Get Token
+      const response = await api.get(`/call/token?channelName=${channelRef.current}&role=publisher`);
+      const { token, uid } = response.data;
 
-      await pc.setRemoteDescription(new RTCSessionDescription(incomingCall));
-      processIceQueue();
+      const client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
+      clientRef.current = client;
 
-      const answer = await pc.createAnswer();
-      await pc.setLocalDescription(answer);
+      client.on('user-published', handleUserPublished);
+      client.on('user-unpublished', handleUserUnpublished);
 
-      socket.emit('answer_call', { to: remoteUser, signal: answer });
+      await client.join(AGORA_APP_ID, channelRef.current, token, uid);
+
+      const [audioTrack, videoTrack] = await AgoraRTC.createMicrophoneAndCameraTracks();
+      localAudioTrackRef.current = audioTrack;
+      localVideoTrackRef.current = videoTrack;
+
+      setLocalStream({ videoTrack, audioTrack });
+
+      if (!isVideo) {
+          videoTrack.setEnabled(false);
+          setIsVideoMuted(true);
+      }
+
+      await client.publish([audioTrack, videoTrack]);
+
+      socket.emit('answer_call', { to: remoteUser });
     } catch (e) {
+      console.error('Answer Call Error:', e);
       socket.emit('reject_call', { to: remoteUser });
       cleanupCall();
     }
@@ -231,29 +228,55 @@ export const CallProvider = ({ children }) => {
   };
 
   const toggleMic = () => {
-    if (localStreamRef.current) {
-      const audioTrack = localStreamRef.current.getAudioTracks()[0];
-      if (audioTrack) {
-        audioTrack.enabled = !audioTrack.enabled;
-        setIsMicMuted(!audioTrack.enabled);
-      }
+    if (localAudioTrackRef.current) {
+      const newState = !isMicMuted;
+      localAudioTrackRef.current.setEnabled(!newState);
+      setIsMicMuted(newState);
     }
   };
 
   const toggleVideo = () => {
-    if (localStreamRef.current) {
-      const videoTrack = localStreamRef.current.getVideoTracks()[0];
-      if (videoTrack) {
-        videoTrack.enabled = !videoTrack.enabled;
-        setIsVideoMuted(!videoTrack.enabled);
+    if (localVideoTrackRef.current) {
+      const newState = !isVideoMuted;
+      localVideoTrackRef.current.setEnabled(!newState);
+      setIsVideoMuted(newState);
+    }
+  };
+
+  const toggleSpeaker = async () => {
+    try {
+      const devices = await AgoraRTC.getPlaybackDevices();
+      const newState = !isSpeakerOn;
+      setIsSpeakerOn(newState);
+
+      // If we have a remote audio track, try to switch its output
+      // Note: This often has limited support in mobile browsers
+      if (clientRef.current && remoteUser) {
+        // Find the remote user's audio track
+        const remoteAgoraUser = clientRef.current.remoteUsers.find(u => u.uid === remoteUser);
+        if (remoteAgoraUser && remoteAgoraUser.audioTrack) {
+          if (newState) {
+            // Try to find a 'speaker' device or just use default
+            await remoteAgoraUser.audioTrack.setPlaybackDevice(devices[0]?.deviceId || 'default');
+          } else {
+            // Try to find an 'earpiece' or secondary device if it exists
+            const earpiece = devices.find(d => d.label.toLowerCase().includes('earpiece') || d.label.toLowerCase().includes('handset'));
+            if (earpiece) {
+              await remoteAgoraUser.audioTrack.setPlaybackDevice(earpiece.deviceId);
+            } else if (devices.length > 1) {
+              await remoteAgoraUser.audioTrack.setPlaybackDevice(devices[1].deviceId);
+            }
+          }
+        }
       }
+    } catch (error) {
+      console.error('Error toggling speaker:', error);
     }
   };
 
   return (
     <CallContext.Provider value={{
       callState,
-      incomingCall,
       callerName,
       isVideo,
       localStream,
@@ -265,7 +288,9 @@ export const CallProvider = ({ children }) => {
       declineCall,
       endCall,
       toggleMic,
-      toggleVideo
+      toggleVideo,
+      isSpeakerOn,
+      toggleSpeaker
     }}>
       {children}
     </CallContext.Provider>

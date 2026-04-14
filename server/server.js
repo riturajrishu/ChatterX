@@ -35,6 +35,7 @@ const messageRoutes = require('./routes/messageRoutes');
 const groupRoutes = require('./routes/groupRoutes');
 const mediaRoutes = require('./routes/mediaRoutes');
 const adminRoutes = require('./routes/adminRoutes');
+const callRoutes = require('./routes/callRoutes');
 
 const app = express();
 const server = http.createServer(app);
@@ -87,6 +88,7 @@ app.use('/api/messages', messageRoutes);
 app.use('/api/groups', groupRoutes);
 app.use('/api/media', mediaRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/call', callRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

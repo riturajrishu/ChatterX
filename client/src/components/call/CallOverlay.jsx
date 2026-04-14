@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useCall } from '../../context/CallContext';
-import { Phone, PhoneOff, Video, VideoOff, Mic, MicOff, User } from 'lucide-react';
+import { Phone, PhoneOff, Video, VideoOff, Mic, MicOff, User, Volume2, Smartphone } from 'lucide-react';
 import Button from '../ui/Button';
 
 export default function CallOverlay() {
@@ -12,11 +12,13 @@ export default function CallOverlay() {
     remoteStream, 
     isMicMuted, 
     isVideoMuted,
+    isSpeakerOn,
     answerCall, 
     declineCall, 
     endCall, 
     toggleMic, 
-    toggleVideo 
+    toggleVideo,
+    toggleSpeaker 
   } = useCall();
 
   const localVideoRef = useRef(null);
@@ -25,19 +27,16 @@ export default function CallOverlay() {
 
   // Attach local stream to video
   useEffect(() => {
-    if (localVideoRef.current && localStream) {
-      localVideoRef.current.srcObject = localStream;
+    if (localVideoRef.current && localStream?.videoTrack) {
+      localStream.videoTrack.play(localVideoRef.current);
     }
   }, [localStream, callState]);
 
-  // Attach remote stream to video or audio
+  // Attach remote stream to video
   useEffect(() => {
-    if (callState === 'active' && remoteStream) {
-      if (isVideo && remoteVideoRef.current) {
-        remoteVideoRef.current.srcObject = remoteStream;
-      }
-      if (!isVideo && remoteAudioRef.current) {
-         remoteAudioRef.current.srcObject = remoteStream;
+    if (callState === 'active' && remoteStream && isVideo) {
+      if (remoteVideoRef.current) {
+        remoteStream.play(remoteVideoRef.current);
       }
     }
   }, [remoteStream, callState, isVideo]);
@@ -133,7 +132,7 @@ export default function CallOverlay() {
                  <User size={56} className="text-gray-400" />
                </div>
                <h2 className="text-2xl mt-6 font-bold relative z-10">{callerName}</h2>
-               <p className="text-[var(--color-primary)] mt-1 animate-pulse relative z-10">Active Info</p>
+               <p className="text-[var(--color-primary)] mt-1 animate-pulse relative z-10">Active Call</p>
                
                {/* Hidden audio element to play remote stream */}
                <audio ref={remoteAudioRef} autoPlay />
@@ -147,6 +146,14 @@ export default function CallOverlay() {
                className={`p-3 rounded-full transition-colors ${isMicMuted ? 'bg-[var(--color-surface-700)] text-white' : 'bg-gray-100 text-gray-900 hover:bg-gray-200'}`}
              >
                {isMicMuted ? <MicOff size={22} /> : <Mic size={22} />}
+             </button>
+
+             <button 
+               onClick={toggleSpeaker}
+               title={isSpeakerOn ? 'Switch to Earpiece' : 'Switch to Speaker'}
+               className={`p-3 rounded-full transition-colors ${!isSpeakerOn ? 'bg-[var(--color-surface-700)] text-white' : 'bg-gray-100 text-gray-900 hover:bg-gray-200'}`}
+             >
+               {isSpeakerOn ? <Volume2 size={22} /> : <Smartphone size={22} />}
              </button>
              
              {isVideo && (
