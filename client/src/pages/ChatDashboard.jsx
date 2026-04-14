@@ -82,7 +82,7 @@ export default function ChatDashboard() {
   }, [socket, isConnected, addMessage, updateMessageSeen, removeMessage, fetchChats]);
 
   return (
-    <div className="flex fixed inset-0 bg-[var(--color-surface-900)] overflow-hidden">
+    <div className="flex fixed inset-0 h-[100dvh] bg-[var(--color-surface-900)] overflow-hidden">
       {/* Absolute fullscreen call overlay */}
       <CallOverlay />
 
@@ -97,7 +97,7 @@ export default function ChatDashboard() {
 
       {/* Main Chat Area */}
       <div 
-        className={`flex-1 flex flex-col h-full bg-[var(--color-surface-900)] relative
+        className={`flex-1 flex flex-col h-full sm:h-[100dvh] bg-[var(--color-surface-900)] relative w-full overflow-hidden
            ${isMobileListVisible ? 'hidden md:flex' : 'flex'}
         `}
       >

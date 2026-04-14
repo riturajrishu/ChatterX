@@ -156,7 +156,7 @@ export default function SignupPage() {
   };
 
   return (
-    <div className="h-[100dvh] sm:h-screen overflow-y-auto overflow-x-hidden gradient-auth flex flex-col items-center justify-start sm:justify-center p-4 py-8 relative">
+    <div className="h-[100dvh] sm:h-screen overflow-y-auto overflow-x-hidden gradient-auth flex flex-col items-center justify-start sm:justify-center p-4 pt-12 pb-8 sm:py-12 relative">
       
       {/* Decorative Floating Background Elements */}
       <div className="absolute top-[10%] left-[10%] w-[40vw] h-[40vw] max-w-[500px] max-h-[500px] bg-[var(--color-primary)] opacity-[0.15] rounded-full blur-[100px] pointer-events-none mix-blend-screen animate-pulse-soft"></div>

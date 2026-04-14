@@ -23,6 +23,7 @@ export default function ChatWindow({ onBack }) {
   
   const messagesEndRef = useRef(null);
   const listRef = useRef(null);
+  const initialScrollRef = useRef(true);
   
   const chatId = selectedChat?._id;
   const chatMessages = messages[chatId] || [];
@@ -30,10 +31,13 @@ export default function ChatWindow({ onBack }) {
 
   // Fetch initial messages when chat is selected
   useEffect(() => {
-    if (chatId && chatMessages.length === 0) {
-      fetchMessages(chatId);
+    if (chatId) {
+      if (chatMessages.length === 0) {
+        fetchMessages(chatId);
+      }
+      // Reset initial scroll flag when chat changes
+      initialScrollRef.current = true;
     }
-    // Cancel any active reply when switching chats
     setReplyMessage(null);
     setDeleteTarget(null);
   }, [chatId]);
@@ -63,12 +67,15 @@ export default function ChatWindow({ onBack }) {
   // Auto-scroll to bottom on new message
   useEffect(() => {
     if (listRef.current) {
-      // Simple heuristic: if we are close to bottom, snap to bottom
       const { scrollTop, scrollHeight, clientHeight } = listRef.current;
       const isNearBottom = scrollHeight - scrollTop - clientHeight < 200;
       
-      if (isNearBottom) {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      // Force scroll on initial load OR if already near bottom
+      if (initialScrollRef.current || isNearBottom) {
+        messagesEndRef.current?.scrollIntoView({ behavior: initialScrollRef.current ? 'auto' : 'smooth' });
+        if (chatMessages.length > 0) {
+          initialScrollRef.current = false;
+        }
       }
     }
   }, [chatMessages]);
@@ -168,7 +175,7 @@ export default function ChatWindow({ onBack }) {
   const isDeleteTargetOwn = deleteTarget?.senderId?._id === user._id;
 
   return (
-    <div className="flex flex-col h-full bg-[var(--color-surface-900)] relative w-full">
+    <div className="flex flex-col h-full bg-[var(--color-surface-900)] relative w-full overflow-hidden">
       {/* Header */}
       <div className="h-16 flex-shrink-0 px-4 flex items-center justify-between border-b border-[var(--color-border)] bg-[var(--color-surface-800)] z-10">
         <div className="flex items-center gap-3">

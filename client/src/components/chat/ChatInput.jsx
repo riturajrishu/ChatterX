@@ -150,7 +150,7 @@ export default function ChatInput({ chatId, isGroup, replyMessage, onCancelReply
   };
 
   return (
-    <div className="bg-[var(--color-surface-800)] px-3 sm:px-4 py-3 border-t border-[var(--color-border)] relative z-20">
+    <div className="bg-[var(--color-surface-800)] px-3 sm:px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] border-t border-[var(--color-border)] relative z-20 transition-all duration-300">
       
       {/* Reply Preview */}
       {replyMessage && (
