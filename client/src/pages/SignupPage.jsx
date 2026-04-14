@@ -182,7 +182,7 @@ export default function SignupPage() {
               name="fullName"
               type="text"
               label="Full Name"
-              placeholder="John Doe"
+              placeholder="Ritu Raj"
               value={formData.fullName}
               onChange={handleChange}
               icon={User}
@@ -193,7 +193,7 @@ export default function SignupPage() {
                 name="username"
                 type="text"
                 label="Username"
-                placeholder="johndoe"
+                placeholder="riturajrishu"
                 value={formData.username}
                 onChange={handleChange}
                 icon={User}
