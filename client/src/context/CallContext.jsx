@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useRef, useState } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import AgoraRTC from 'agora-rtc-sdk-ng';
 import { useSocket } from './SocketContext';
 import { useAuth } from './AuthContext';
@@ -23,8 +23,8 @@ export const CallProvider = ({ children }) => {
   const [remoteUser, setRemoteUser] = useState(null); 
   const [isVideo, setIsVideo] = useState(false);
   
-  const [localStream, setLocalStream] = useState(null); // Actually local tracks in Agora
-  const [remoteStream, setRemoteStream] = useState(null); // Remote tracks
+  const [localStream, setLocalStream] = useState(null);
+  const [remoteStream, setRemoteStream] = useState(null);
   
   const [isMicMuted, setIsMicMuted] = useState(false);
   const [isVideoMuted, setIsVideoMuted] = useState(false);
@@ -36,20 +36,35 @@ export const CallProvider = ({ children }) => {
   const localVideoTrackRef = useRef(null);
   const channelRef = useRef(null);
 
-  const cleanupCall = async () => {
-    if (localAudioTrackRef.current) {
-      localAudioTrackRef.current.close();
-      localAudioTrackRef.current = null;
-    }
-    if (localVideoTrackRef.current) {
-      localVideoTrackRef.current.close();
-      localVideoTrackRef.current = null;
-    }
-    if (clientRef.current) {
-      await clientRef.current.leave();
-      clientRef.current = null;
-    }
+  // Use a ref for callState so socket listeners always have the latest value
+  // without needing callState in their dependency array
+  const callStateRef = useRef(callState);
+  useEffect(() => {
+    callStateRef.current = callState;
+  }, [callState]);
 
+  const cleanupCall = useCallback(async () => {
+    try {
+      if (localAudioTrackRef.current) {
+        localAudioTrackRef.current.close();
+        localAudioTrackRef.current = null;
+      }
+    } catch (e) { console.warn('Audio track cleanup error:', e); }
+
+    try {
+      if (localVideoTrackRef.current) {
+        localVideoTrackRef.current.close();
+        localVideoTrackRef.current = null;
+      }
+    } catch (e) { console.warn('Video track cleanup error:', e); }
+
+    try {
+      if (clientRef.current) {
+        await clientRef.current.leave();
+      }
+    } catch (e) { console.warn('Agora client leave error:', e); }
+    
+    clientRef.current = null;
     setLocalStream(null);
     setRemoteStream(null);
     setCallState('idle');
@@ -57,14 +72,13 @@ export const CallProvider = ({ children }) => {
     setIsMicMuted(false);
     setIsVideoMuted(false);
     channelRef.current = null;
-  };
+  }, []);
 
-  const handleUserPublished = async (remoteUser, mediaType) => {
+  const handleUserPublished = useCallback(async (remoteUser, mediaType) => {
     if (!clientRef.current) return;
     
     try {
       await clientRef.current.subscribe(remoteUser, mediaType);
-      console.log(`Subscribed to remote ${mediaType} track`);
       
       if (mediaType === 'video') {
          setRemoteStream(remoteUser.videoTrack);
@@ -75,20 +89,22 @@ export const CallProvider = ({ children }) => {
     } catch (err) {
       console.error('Subscribe error:', err);
     }
-  };
+  }, []);
 
-  const handleUserUnpublished = (remoteUser, mediaType) => {
+  const handleUserUnpublished = useCallback((remoteUser, mediaType) => {
     if (mediaType === 'video') {
        setRemoteStream(null);
     }
-  };
+  }, []);
 
   // Socket Listeners for Signaling
+  // IMPORTANT: No `callState` in deps. We use callStateRef instead to avoid
+  // re-registering all listeners on every state change.
   useEffect(() => {
     if (!socket || !isConnected || !user) return;
 
-    socket.on('incoming_call', async ({ from, name, isVideo: callIsVideo, channelName }) => {
-      if (callState !== 'idle') {
+    const onIncomingCall = ({ from, name, isVideo: callIsVideo, channelName }) => {
+      if (callStateRef.current !== 'idle') {
         socket.emit('reject_call', { to: from, reason: 'busy' });
         return;
       }
@@ -97,35 +113,39 @@ export const CallProvider = ({ children }) => {
       setIsVideo(callIsVideo);
       channelRef.current = channelName;
       setCallState('incoming');
-    });
+    };
 
-    socket.on('call_accepted', async () => {
-      // The person who initiated the call will receive this
-      if (callState === 'dialing') {
-          setCallState('active');
-          toast.success('Call connected');
+    const onCallAccepted = () => {
+      if (callStateRef.current === 'dialing') {
+        setCallState('active');
+        toast.success('Call connected');
       }
-    });
+    };
 
-    socket.on('call_rejected', ({ reason }) => {
+    const onCallRejected = ({ reason }) => {
       toast.error(`Call declined: ${reason}`);
       cleanupCall();
-    });
+    };
 
-    socket.on('call_ended', () => {
+    const onCallEnded = () => {
       toast('The call has ended', { icon: '📞' });
       cleanupCall();
-    });
+    };
+
+    socket.on('incoming_call', onIncomingCall);
+    socket.on('call_accepted', onCallAccepted);
+    socket.on('call_rejected', onCallRejected);
+    socket.on('call_ended', onCallEnded);
 
     return () => {
-      socket.off('incoming_call');
-      socket.off('call_accepted');
-      socket.off('call_rejected');
-      socket.off('call_ended');
+      socket.off('incoming_call', onIncomingCall);
+      socket.off('call_accepted', onCallAccepted);
+      socket.off('call_rejected', onCallRejected);
+      socket.off('call_ended', onCallEnded);
     };
-  }, [socket, isConnected, user, callState]);
+  }, [socket, isConnected, user, cleanupCall]);
 
-  const initiateCall = async (userToCall, name, withVideo = true) => {
+  const initiateCall = useCallback(async (userToCall, name, withVideo = true) => {
     try {
       if (!AGORA_APP_ID) {
         toast.error('Agora App ID not configured');
@@ -137,25 +157,20 @@ export const CallProvider = ({ children }) => {
       setIsVideo(withVideo);
       setCallState('dialing');
 
-      // Generate unique channel name
       const channelName = [user._id, userToCall].sort().join('_');
       channelRef.current = channelName;
 
-      // Get Token
       const response = await api.get(`/call/token?channelName=${channelName}&role=publisher`);
       const { token, uid } = response.data;
 
-      // Initialize Agora Client
       const client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
       clientRef.current = client;
 
-      // Event handlers
       client.on('user-published', handleUserPublished);
       client.on('user-unpublished', handleUserUnpublished);
 
       await client.join(AGORA_APP_ID, channelName, token, uid);
 
-      // Create tracks
       const [audioTrack, videoTrack] = await AgoraRTC.createMicrophoneAndCameraTracks();
       localAudioTrackRef.current = audioTrack;
       localVideoTrackRef.current = videoTrack;
@@ -167,19 +182,18 @@ export const CallProvider = ({ children }) => {
           setIsVideoMuted(true);
       }
 
-      // Check if tracks are valid before publishing
       if (client.connectionState === 'CONNECTED') {
          await client.publish([audioTrack, videoTrack]);
       } else {
-         console.warn('Client not connected yet, waiting to publish...');
-         client.on('connection-state-change', async (curState) => {
+         const onStateChange = async (curState) => {
            if (curState === 'CONNECTED') {
-             await client.publish([audioTrack, videoTrack]);
+             try { await client.publish([audioTrack, videoTrack]); } catch(e) { console.error(e); }
+             client.off('connection-state-change', onStateChange);
            }
-         });
+         };
+         client.on('connection-state-change', onStateChange);
       }
 
-      // Notify remote user
       socket.emit('call_user', {
         userToCall,
         from: user._id,
@@ -193,14 +207,13 @@ export const CallProvider = ({ children }) => {
       toast.error('Failed to start call');
       cleanupCall();
     }
-  };
+  }, [user, socket, handleUserPublished, handleUserUnpublished, cleanupCall]);
 
-  const answerCall = async () => {
+  const answerCall = useCallback(async () => {
     if (!remoteUser || !channelRef.current) return;
     try {
       setCallState('active');
 
-      // Get Token
       const response = await api.get(`/call/token?channelName=${channelRef.current}&role=publisher`);
       const { token, uid } = response.data;
 
@@ -228,62 +241,56 @@ export const CallProvider = ({ children }) => {
       socket.emit('answer_call', { to: remoteUser });
     } catch (e) {
       console.error('Answer Call Error:', e);
-      // Don't toast if it was a user abort or familiar error
       if (e.message !== 'PERMISSION_DENIED') {
         toast.error('Could not access camera/microphone');
       }
       socket.emit('reject_call', { to: remoteUser });
       cleanupCall();
     }
-  };
+  }, [remoteUser, isVideo, socket, handleUserPublished, handleUserUnpublished, cleanupCall]);
 
-  const declineCall = () => {
+  const declineCall = useCallback(() => {
     if (remoteUser) {
       socket.emit('reject_call', { to: remoteUser });
     }
     cleanupCall();
-  };
+  }, [remoteUser, socket, cleanupCall]);
 
-  const endCall = () => {
+  const endCall = useCallback(() => {
     if (remoteUser && socket) {
       socket.emit('end_call', { to: remoteUser });
     }
     cleanupCall();
-  };
+  }, [remoteUser, socket, cleanupCall]);
 
-  const toggleMic = () => {
+  const toggleMic = useCallback(() => {
     if (localAudioTrackRef.current) {
       const newState = !isMicMuted;
       localAudioTrackRef.current.setEnabled(!newState);
       setIsMicMuted(newState);
     }
-  };
+  }, [isMicMuted]);
 
-  const toggleVideo = () => {
+  const toggleVideo = useCallback(() => {
     if (localVideoTrackRef.current) {
       const newState = !isVideoMuted;
       localVideoTrackRef.current.setEnabled(!newState);
       setIsVideoMuted(newState);
     }
-  };
+  }, [isVideoMuted]);
 
-  const toggleSpeaker = async () => {
+  const toggleSpeaker = useCallback(async () => {
     try {
       const devices = await AgoraRTC.getPlaybackDevices();
       const newState = !isSpeakerOn;
       setIsSpeakerOn(newState);
 
-      // If we have a remote audio track, try to switch its output
-      // Note: This often has limited support in mobile browsers
-      if (clientRef.current && remoteUser) {
-        // Find the remote user's audio track
-        const remoteAgoraUser = clientRef.current.remoteUsers.find(u => u.uid === remoteUser);
-        if (remoteAgoraUser && remoteAgoraUser.audioTrack) {
+      if (clientRef.current) {
+        const remoteAgoraUser = clientRef.current.remoteUsers?.[0];
+        if (remoteAgoraUser?.audioTrack) {
           if (newState) {
-            // Try to find a 'speaker' device or just use default
             await remoteAgoraUser.audioTrack.setPlaybackDevice(devices[0]?.deviceId || 'default');
           } else {
-            // Try to find an 'earpiece' or secondary device if it exists
             const earpiece = devices.find(d => d.label.toLowerCase().includes('earpiece') || d.label.toLowerCase().includes('handset'));
             if (earpiece) {
               await remoteAgoraUser.audioTrack.setPlaybackDevice(earpiece.deviceId);
@@ -296,26 +303,33 @@ export const CallProvider = ({ children }) => {
     } catch (error) {
       console.error('Error toggling speaker:', error);
     }
-  };
+  }, [isSpeakerOn]);
+
+  // Memoize context value to prevent unnecessary re-renders of ALL consumers
+  const contextValue = useMemo(() => ({
+    callState,
+    callerName,
+    isVideo,
+    localStream,
+    remoteStream,
+    isMicMuted,
+    isVideoMuted,
+    initiateCall,
+    answerCall,
+    declineCall,
+    endCall,
+    toggleMic,
+    toggleVideo,
+    isSpeakerOn,
+    toggleSpeaker
+  }), [
+    callState, callerName, isVideo, localStream, remoteStream,
+    isMicMuted, isVideoMuted, initiateCall, answerCall, declineCall,
+    endCall, toggleMic, toggleVideo, isSpeakerOn, toggleSpeaker
+  ]);
 
   return (
-    <CallContext.Provider value={{
-      callState,
-      callerName,
-      isVideo,
-      localStream,
-      remoteStream,
-      isMicMuted,
-      isVideoMuted,
-      initiateCall,
-      answerCall,
-      declineCall,
-      endCall,
-      toggleMic,
-      toggleVideo,
-      isSpeakerOn,
-      toggleSpeaker
-    }}>
+    <CallContext.Provider value={contextValue}>
       {children}
     </CallContext.Provider>
   );

@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { io } from 'socket.io-client';
 import { useAuth } from './AuthContext';
 
@@ -12,14 +12,26 @@ export const SocketProvider = ({ children }) => {
   const [socket, setSocket] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
   const { user } = useAuth();
-  
+  const socketRef = useRef(null);
+
+  // Only depend on user ID, NOT the entire user object.
+  // Previously, any profile update (avatar, name) would reconnect the socket.
+  const userId = user?._id;
+
   useEffect(() => {
-    if (!user) {
+    if (!userId) {
       // Clean up socket if user logs out
-      if (socket) {
-        socket.disconnect();
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+        socketRef.current = null;
         setSocket(null);
+        setIsConnected(false);
       }
+      return;
+    }
+
+    // Don't create a new socket if one already exists for this user
+    if (socketRef.current?.connected) {
       return;
     }
 
@@ -42,12 +54,14 @@ export const SocketProvider = ({ children }) => {
       console.log('Socket disconnected');
     });
 
+    socketRef.current = socketInstance;
     setSocket(socketInstance);
 
     return () => {
       socketInstance.disconnect();
+      socketRef.current = null;
     };
-  }, [user]);
+  }, [userId]);
 
   return (
     <SocketContext.Provider value={{ socket, isConnected }}>

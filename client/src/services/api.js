@@ -8,17 +8,25 @@ const api = axios.create({
   },
 });
 
+// Guard against redirect storms - only allow one redirect per 3 seconds
+let isRedirecting = false;
+
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    // Check if error response exists and is a 401 Unauthorized
     if (error.response && error.response.status === 401) {
-      // Avoid redirect loops if we're already on login/signup
       const currentPath = window.location.pathname;
-      if (currentPath !== '/login' && currentPath !== '/signup') {
-        // Clear local storage and redirect
+
+      // Skip redirect if already on auth pages, or if a redirect is in progress
+      if (currentPath !== '/login' && currentPath !== '/signup' && !isRedirecting) {
+        isRedirecting = true;
+
+        // Clear auth storage and redirect
         localStorage.removeItem('auth-storage');
         window.location.href = '/login';
+
+        // Reset the guard after 3s (in case redirect fails)
+        setTimeout(() => { isRedirecting = false; }, 3000);
       }
     }
     return Promise.reject(error);

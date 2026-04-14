@@ -1,11 +1,9 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, memo } from 'react';
 import { format } from 'date-fns';
 import { Check, CheckCheck, Reply, Trash2, ShieldAlert, Clock } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
 
-export default function ChatBubble({ message, isOwn, isGroup, showAvatar, onReply, onDelete, onImageClick }) {
-  const { user } = useAuth();
-  
+// Memoized to prevent re-rendering every bubble when one message changes
+const ChatBubble = memo(function ChatBubble({ message, isOwn, isGroup, showAvatar, currentUserId, onReply, onDelete, onImageClick }) {
   if (!message) return null;
 
   const isSeen = message.seenBy?.some(id => id !== message.senderId?._id);
@@ -24,7 +22,6 @@ export default function ChatBubble({ message, isOwn, isGroup, showAvatar, onRepl
     const currentX = e.targetTouches[0].clientX;
     const diff = currentX - touchStartRef.current;
     
-    // swipe right to reply, swipe left to delete
     if (diff > 0) {
       setSwipeOffset(Math.min(diff, 60));
     } else if (diff < 0) {
@@ -33,7 +30,6 @@ export default function ChatBubble({ message, isOwn, isGroup, showAvatar, onRepl
   };
 
   const handleTouchEnd = () => {
-    // Threshold is 40px
     if (swipeOffset > 40) {
       onReply?.();
     } else if (swipeOffset < -40) {
@@ -47,11 +43,9 @@ export default function ChatBubble({ message, isOwn, isGroup, showAvatar, onRepl
     <div className="relative w-full mb-1 group">
       {/* Background Icons revealed during swipe */}
       <div className="absolute inset-0 flex items-center justify-between px-4" style={{ zIndex: 0, opacity: Math.abs(swipeOffset) > 0 ? 1 : 0 }}>
-         {/* Left Side (Reply) */}
          <div className={`text-[var(--color-primary)] transition-transform ${swipeOffset > 40 ? 'scale-125' : 'scale-100'}`}>
             <Reply size={20} />
          </div>
-         {/* Right Side (Delete) */}
          <div className={`text-[var(--color-danger)] transition-transform ${swipeOffset < -40 ? 'scale-125' : 'scale-100'}`}>
             <Trash2 size={20} />
          </div>
@@ -102,7 +96,7 @@ export default function ChatBubble({ message, isOwn, isGroup, showAvatar, onRepl
         {message.replyTo && (
            <div className="mb-1 p-2 rounded bg-black/20 border-l-4 border-[var(--color-primary)] opacity-80 text-sm flex flex-col">
               <span className="font-semibold text-xs text-[var(--color-primary-light)]">
-                 {message.replyTo?.senderId === user._id ? 'You' : message.replyTo?.senderId?.username || 'Unknown'}
+                 {message.replyTo?.senderId === currentUserId ? 'You' : message.replyTo?.senderId?.username || 'Unknown'}
               </span>
               <span className="truncate text-gray-300">{message.replyTo?.text || 'Attachment'}</span>
            </div>
@@ -149,4 +143,6 @@ export default function ChatBubble({ message, isOwn, isGroup, showAvatar, onRepl
       </div>
     </div>
   );
-}
+});
+
+export default ChatBubble;

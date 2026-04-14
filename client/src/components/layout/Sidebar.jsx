@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useChatStore } from '../../context/ChatContext';
 import { LogOut, Settings, Search, Edit, MoreVertical, Pin, Users, Shield } from 'lucide-react';
@@ -14,24 +14,33 @@ export default function Sidebar({ onChatSelect }) {
   const [isSearching, setIsSearching] = useState(false);
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
   const navigate = useNavigate();
+  const searchTimerRef = useRef(null);
 
-  const handleSearch = async (e) => {
+  const handleSearch = useCallback((e) => {
     const query = e.target.value;
     setSearchQuery(query);
 
+    // Clear any pending search timer
+    if (searchTimerRef.current) {
+      clearTimeout(searchTimerRef.current);
+    }
+
     if (query.length > 1) {
       setIsSearching(true);
-      try {
-        const { data } = await api.get(`/users/search?q=${query}`);
-        setSearchResults(data.users);
-      } catch (error) {
-        console.error('Search failed', error);
-      }
+      // Debounce: wait 400ms after user stops typing
+      searchTimerRef.current = setTimeout(async () => {
+        try {
+          const { data } = await api.get(`/users/search?q=${query}`);
+          setSearchResults(data.users);
+        } catch (error) {
+          console.error('Search failed', error);
+        }
+      }, 400);
     } else {
       setIsSearching(false);
       setSearchResults([]);
     }
-  };
+  }, []);
 
   const handleStartChat = async (otherUser) => {
     try {

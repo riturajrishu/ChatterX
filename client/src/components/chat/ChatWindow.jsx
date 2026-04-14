@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useChatStore } from '../../context/ChatContext';
 import { useSocket } from '../../context/SocketContext';
@@ -16,14 +16,16 @@ export default function ChatWindow({ onBack }) {
   const { socket } = useSocket();
   const { initiateCall } = useCall();
   const [loadingMore, setLoadingMore] = useState(false);
-  const [typingUsers, setTypingUsers] = useState({}); // userId -> username
+  const [typingUsers, setTypingUsers] = useState({});
   const [replyMessage, setReplyMessage] = useState(null);
   const [selectedImage, setSelectedImage] = useState(null);
-  const [deleteTarget, setDeleteTarget] = useState(null); // message to show delete modal for
+  const [deleteTarget, setDeleteTarget] = useState(null);
   
   const messagesEndRef = useRef(null);
   const listRef = useRef(null);
   const initialScrollRef = useRef(true);
+  // Track which messages we've already marked as seen to prevent repeat API calls
+  const seenMarkedRef = useRef(new Set());
   
   const chatId = selectedChat?._id;
   const chatMessages = messages[chatId] || [];
@@ -35,8 +37,9 @@ export default function ChatWindow({ onBack }) {
       if (chatMessages.length === 0) {
         fetchMessages(chatId);
       }
-      // Reset initial scroll flag when chat changes
       initialScrollRef.current = true;
+      // Reset seen tracking when switching chats
+      seenMarkedRef.current = new Set();
     }
     setReplyMessage(null);
     setDeleteTarget(null);
@@ -70,7 +73,6 @@ export default function ChatWindow({ onBack }) {
       const { scrollTop, scrollHeight, clientHeight } = listRef.current;
       const isNearBottom = scrollHeight - scrollTop - clientHeight < 200;
       
-      // Force scroll on initial load OR if already near bottom
       if (initialScrollRef.current || isNearBottom) {
         messagesEndRef.current?.scrollIntoView({ behavior: initialScrollRef.current ? 'auto' : 'smooth' });
         if (chatMessages.length > 0) {
@@ -83,14 +85,12 @@ export default function ChatWindow({ onBack }) {
   const handleScroll = async () => {
     if (!listRef.current || loadingMore || !hasMoreMessages) return;
     
-    // If scrolled to top, fetch older messages
     if (listRef.current.scrollTop === 0) {
       setLoadingMore(true);
       const oldestMessage = chatMessages[0];
       if (oldestMessage) {
         const previousScrollHeight = listRef.current.scrollHeight;
         await fetchMessages(chatId, oldestMessage.timestamp);
-        // Maintain scroll position after prepending
         setTimeout(() => {
           if (listRef.current) {
             listRef.current.scrollTop = listRef.current.scrollHeight - previousScrollHeight;
@@ -103,32 +103,46 @@ export default function ChatWindow({ onBack }) {
     }
   };
 
-  // Mark all as seen when chat opens AND emit socket events for real-time blue ticks
+  // FIX #5: Mark as seen - heavily optimized.
+  // Old code: fired on EVERY chatMessages change, emitting socket events for 
+  // each unseen message every single time. With 50 messages, that's 50 socket
+  // emits on EVERY render.
+  // New code: only processes messages we haven't already marked, and debounces.
   useEffect(() => {
-    if (chatId && chatMessages.length > 0) {
-      const unseenMessages = chatMessages
-        .filter(m => m.senderId._id !== user._id && !(m.seenBy || []).includes(user._id));
-        
-      if (unseenMessages.length > 0) {
-         // Call the batch API
-         api.put(`/messages/${chatId}/seen-all`).catch(e => console.error(e));
+    if (!chatId || chatMessages.length === 0 || !user?._id) return;
 
-         // Also emit individual socket seen events for real-time blue tick updates
-         if (socket) {
-           unseenMessages.forEach(m => {
-             socket.emit('message_seen', { messageId: m._id, chatId });
-           });
-         }
+    const unseenMessages = chatMessages.filter(m => {
+      if (m.senderId?._id === user._id) return false;
+      if ((m.seenBy || []).includes(user._id)) return false;
+      if (seenMarkedRef.current.has(m._id)) return false;
+      return true;
+    });
+
+    if (unseenMessages.length === 0) return;
+
+    // Mark them in our local tracker immediately to prevent re-processing
+    unseenMessages.forEach(m => seenMarkedRef.current.add(m._id));
+
+    // Debounce the actual API call
+    const timer = setTimeout(() => {
+      api.put(`/messages/${chatId}/seen-all`).catch(e => console.error(e));
+
+      if (socket) {
+        // Batch emit - only for new unseen messages
+        unseenMessages.forEach(m => {
+          socket.emit('message_seen', { messageId: m._id, chatId });
+        });
       }
-    }
-  }, [chatId, chatMessages, user._id, socket]);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [chatId, chatMessages.length, user?._id, socket]);
 
   // Delete message handler
-  const handleDeleteMessage = async (type) => {
+  const handleDeleteMessage = useCallback(async (type) => {
     if (!deleteTarget) return;
     try {
       await api.delete(`/messages/${deleteTarget._id}?type=${type}`);
-      // For 'me' deletion, remove locally. For 'everyone', server emits socket event.
       if (type === 'me') {
         removeMessage(chatId, deleteTarget._id);
       }
@@ -137,7 +151,7 @@ export default function ChatWindow({ onBack }) {
       toast.error('Failed to delete message');
     }
     setDeleteTarget(null);
-  };
+  }, [deleteTarget, chatId, removeMessage]);
 
   if (!selectedChat) return null;
 
@@ -161,7 +175,6 @@ export default function ChatWindow({ onBack }) {
     const other = selectedChat.participants.find(p => p._id !== user._id);
     name = other?.fullName || other?.username || 'Unknown';
     avatar = other?.avatar;
-    // Derive real-time status from the global onlineUsers set
     isOnline = other ? onlineUsers.has(other._id) : false;
   }
 
@@ -218,9 +231,8 @@ export default function ChatWindow({ onBack }) {
         </div>
       </div>
 
-      {/* Messages Area - Background Image like WhatsApp */}
+      {/* Messages Area */}
       <div className="flex-1 overflow-hidden relative bg-[var(--color-surface-900)]">
-         {/* Optional background pattern */}
          <div className="absolute inset-0 opacity-[0.03] z-0" style={{ backgroundImage: 'radial-gradient(var(--color-text-secondary) 1px, transparent 1px)', backgroundSize: '24px 24px'}}></div>
          
          <div 
@@ -249,6 +261,7 @@ export default function ChatWindow({ onBack }) {
                   isOwn={msg.senderId?._id === user._id}
                   isGroup={isGroup}
                   showAvatar={showAvatar}
+                  currentUserId={user._id}
                   onReply={() => setReplyMessage(msg)}
                   onDelete={(m) => setDeleteTarget(m)}
                   onImageClick={(url) => setSelectedImage(url)}

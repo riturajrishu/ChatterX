@@ -8,11 +8,11 @@ process.on('uncaughtException', (err) => {
   process.exit(1);
 });
 
-// Handle unhandled rejections
+// Handle unhandled rejections - LOG only, do NOT crash the server.
+// A single DB timeout or failed push notification should not kill the entire process.
 process.on('unhandledRejection', (err) => {
-  console.error('\n🔴 UNHANDLED REJECTION! Shutting down...');
+  console.error('\n⚠️ UNHANDLED REJECTION (server continues running):');
   console.error(err);
-  process.exit(1);
 });
 
 const express = require('express');
