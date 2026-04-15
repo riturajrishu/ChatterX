@@ -7,6 +7,7 @@ const ChatBubble = memo(function ChatBubble({ message, isOwn, isGroup, showAvata
   if (!message) return null;
 
   const isSeen = message.seenBy?.some(id => id !== message.senderId?._id);
+  const isDelivered = message.deliveredTo?.some(id => id !== message.senderId?._id);
   const timeStr = message.timestamp ? format(new Date(message.timestamp), 'HH:mm') : '';
 
   // Swipe logic for mobile
@@ -135,9 +136,11 @@ const ChatBubble = memo(function ChatBubble({ message, isOwn, isGroup, showAvata
         <div className={`flex items-center justify-end gap-1 mt-1 text-[10px] ${isOwn ? 'text-[var(--color-primary-light)]' : 'text-[var(--color-text-muted)]'}`}>
            <span>{timeStr}</span>
            {isOwn && (
-             message.pending ? <Clock size={14} className="ml-0.5 opacity-70" /> :
-             isSeen ? <CheckCheck size={14} className="text-[#53bdeb] ml-0.5" /> : <Check size={14} className="ml-0.5" />
-           )}
+              message.pending ? <Clock size={14} className="ml-0.5 opacity-70" /> :
+              isSeen ? <CheckCheck size={14} className="text-[#53bdeb] ml-0.5" /> :
+              isDelivered ? <CheckCheck size={14} className="text-[var(--color-text-muted)] ml-0.5" /> :
+              <Check size={14} className="ml-0.5" />
+            )}
         </div>
         </div>
       </div>

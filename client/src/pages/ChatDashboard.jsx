@@ -1,19 +1,39 @@
 import { useEffect, useState } from 'react';
 import { useChatStore } from '../context/ChatContext';
 import { useSocket } from '../context/SocketContext';
+import { useAuth } from '../context/AuthContext';
 import Sidebar from '../components/layout/Sidebar';
 import ChatWindow from '../components/chat/ChatWindow';
 import CallOverlay from '../components/call/CallOverlay';
+import { requestNotificationPermission } from '../services/firebase';
+import api from '../services/api';
 
 export default function ChatDashboard() {
-  const { fetchChats, selectedChat, setSelectedChat, addMessage, updateMessageSeen, removeMessage } = useChatStore();
+  const { fetchChats, selectedChat, setSelectedChat, addMessage, updateMessageSeen, updateMessageDelivered, removeMessage } = useChatStore();
   const { socket, isConnected } = useSocket();
+  const { user } = useAuth();
   const [isMobileListVisible, setIsMobileListVisible] = useState(true);
 
   // Initial fetch
   useEffect(() => {
     fetchChats();
   }, [fetchChats]);
+
+  // Request Notification Permission & Register FCM Token
+  useEffect(() => {
+    const setupNotifications = async () => {
+      try {
+        const token = await requestNotificationPermission();
+        if (token) {
+          await api.post('/users/fcm-token', { token });
+        }
+      } catch (error) {
+        console.error('Failed to setup push notifications:', error);
+      }
+    };
+
+    setupNotifications();
+  }, []);
 
   // Handle mobile view toggling and dynamic socket room joining
   useEffect(() => {
@@ -37,15 +57,22 @@ export default function ChatDashboard() {
     const handleReceiveMessage = (messageData) => {
       // messageData should contain chatId
       addMessage(messageData.chatId, messageData);
+
+      // Send delivery acknowledgment for messages from other users
+      if (user && messageData.senderId?._id !== user._id && messageData._id) {
+        socket.emit('message_delivered', {
+          messageId: messageData._id,
+          chatId: messageData.chatId,
+        });
+      }
     };
 
     const handleMessageSeen = ({ messageId, chatId, userId }) => {
       updateMessageSeen(chatId, messageId, userId);
     };
 
-    const handleChatUpdate = () => {
-       // Refresh list when group is created/updated or chat pinned
-       fetchChats();
+    const handleMessageDelivered = ({ messageId, chatId, userId }) => {
+      updateMessageDelivered(chatId, messageId, userId);
     };
 
     const handleMessageDeleted = ({ messageId, chatId }) => {
@@ -66,6 +93,7 @@ export default function ChatDashboard() {
 
     socket.on('receive_message', handleReceiveMessage);
     socket.on('message_seen_update', handleMessageSeen);
+    socket.on('message_delivered_update', handleMessageDelivered);
     socket.on('message_deleted', handleMessageDeleted);
     socket.on('online_users', handleOnlineUsers);
     socket.on('user_online', handleUserOnline);
@@ -74,12 +102,13 @@ export default function ChatDashboard() {
     return () => {
       socket.off('receive_message', handleReceiveMessage);
       socket.off('message_seen_update', handleMessageSeen);
+      socket.off('message_delivered_update', handleMessageDelivered);
       socket.off('message_deleted', handleMessageDeleted);
       socket.off('online_users', handleOnlineUsers);
       socket.off('user_online', handleUserOnline);
       socket.off('user_offline', handleUserOffline);
     };
-  }, [socket, isConnected, addMessage, updateMessageSeen, removeMessage, fetchChats]);
+  }, [socket, isConnected, user, addMessage, updateMessageSeen, updateMessageDelivered, removeMessage, fetchChats]);
 
   return (
     <div className="flex fixed inset-0 h-[100dvh] bg-[var(--color-surface-900)] overflow-hidden">

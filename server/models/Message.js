@@ -31,6 +31,12 @@ const messageSchema = new mongoose.Schema(
         ref: 'User',
       },
     ],
+    deliveredTo: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+      },
+    ],
     isAnonymous: {
       type: Boolean,
       default: false,

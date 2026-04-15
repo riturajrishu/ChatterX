@@ -2,8 +2,8 @@ const rateLimit = require('express-rate-limit');
 
 const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100,
-  message: { message: 'Too many requests. Please try again later.' },
+  max: 1000,
+  message: { message: 'Our servers are experiencing high traffic right now, please try again in a minute.' },
   standardHeaders: true,
   legacyHeaders: false,
 });

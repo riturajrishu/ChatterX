@@ -12,7 +12,7 @@ import { useCall } from '../../context/CallContext';
 
 export default function ChatWindow({ onBack }) {
   const { user } = useAuth();
-  const { selectedChat, messages, fetchMessages, hasMore, removeMessage, onlineUsers } = useChatStore();
+  const { selectedChat, messages, fetchMessages, hasMore, removeMessage, onlineUsers, updateMessageDelivered } = useChatStore();
   const { socket } = useSocket();
   const { initiateCall } = useCall();
   const [loadingMore, setLoadingMore] = useState(false);
@@ -66,6 +66,18 @@ export default function ChatWindow({ onBack }) {
     socket.on('typing_display', handleTyping);
     return () => socket.off('typing_display', handleTyping);
   }, [socket, chatId]);
+
+  // Listen for delivery updates
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleDelivered = ({ messageId, chatId: eventChatId, userId: deliveredUserId }) => {
+      updateMessageDelivered(eventChatId, messageId, deliveredUserId);
+    };
+
+    socket.on('message_delivered_update', handleDelivered);
+    return () => socket.off('message_delivered_update', handleDelivered);
+  }, [socket, updateMessageDelivered]);
 
   // Auto-scroll to bottom on new message
   useEffect(() => {

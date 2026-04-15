@@ -93,6 +93,54 @@ const initializeSocket = (server) => {
     };
     joinUserRooms();
 
+    // On connect: mark all undelivered messages (sent to this user) as delivered
+    const markPendingDelivered = async () => {
+      try {
+        // Find messages in user's chats that are NOT yet delivered to this user
+        const userChats = await Chat.find({ participants: userId }).select('_id').lean();
+        const chatIds = userChats.map(c => c._id);
+
+        const undelivered = await Message.find({
+          chatId: { $in: chatIds },
+          senderId: { $ne: userId },
+          deliveredTo: { $ne: userId },
+        }).select('_id chatId senderId').lean();
+
+        if (undelivered.length === 0) return;
+
+        // Bulk update deliveredTo
+        const messageIds = undelivered.map(m => m._id);
+        await Message.updateMany(
+          { _id: { $in: messageIds } },
+          { $addToSet: { deliveredTo: userId } }
+        );
+
+        // Notify each sender about delivery
+        const senderMap = {};
+        undelivered.forEach(m => {
+          const sid = m.senderId.toString();
+          if (!senderMap[sid]) senderMap[sid] = [];
+          senderMap[sid].push({ messageId: m._id, chatId: m.chatId });
+        });
+
+        Object.entries(senderMap).forEach(([senderId, msgs]) => {
+          const senderSockets = getSocketIdsByUserId(senderId);
+          senderSockets.forEach(sockId => {
+            msgs.forEach(({ messageId, chatId }) => {
+              io.to(sockId).emit(EVENTS.MESSAGE_DELIVERED_UPDATE, {
+                messageId: messageId.toString(),
+                chatId: chatId.toString(),
+                userId,
+              });
+            });
+          });
+        });
+      } catch (error) {
+        console.error('Error marking pending delivered:', error.message);
+      }
+    };
+    markPendingDelivered();
+
     // Join a specific chat room
     socket.on(EVENTS.JOIN_CHAT, (chatId) => {
       socket.join(chatId);
@@ -120,6 +168,7 @@ const initializeSocket = (server) => {
           replyTo: replyTo || null,
           isAnonymous: chat.isGroup ? !!isAnonymous : false,
           seenBy: [userId],
+          deliveredTo: [userId],
         });
 
         // Fast Populate & Emit
@@ -191,11 +240,35 @@ const initializeSocket = (server) => {
       });
     });
 
+    // Message delivered acknowledgment
+    socket.on(EVENTS.MESSAGE_DELIVERED, async ({ messageId, chatId }) => {
+      try {
+        await Message.findByIdAndUpdate(messageId, {
+          $addToSet: { deliveredTo: userId },
+        });
+
+        // Notify the sender about delivery
+        const message = await Message.findById(messageId).select('senderId').lean();
+        if (message) {
+          const senderSockets = getSocketIdsByUserId(message.senderId.toString());
+          senderSockets.forEach(sockId => {
+            io.to(sockId).emit(EVENTS.MESSAGE_DELIVERED_UPDATE, {
+              messageId,
+              chatId,
+              userId,
+            });
+          });
+        }
+      } catch (error) {
+        console.error('Delivery update error:', error.message);
+      }
+    });
+
     // Message seen
     socket.on(EVENTS.MESSAGE_SEEN, async ({ messageId, chatId }) => {
       try {
         await Message.findByIdAndUpdate(messageId, {
-          $addToSet: { seenBy: userId },
+          $addToSet: { seenBy: userId, deliveredTo: userId },
         });
 
         socket.to(chatId).emit(EVENTS.MESSAGE_SEEN_UPDATE, {

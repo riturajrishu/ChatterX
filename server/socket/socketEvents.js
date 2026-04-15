@@ -4,6 +4,7 @@ const SOCKET_EVENTS = {
   TYPING_START: 'typing_start',
   TYPING_STOP: 'typing_stop',
   MESSAGE_SEEN: 'message_seen',
+  MESSAGE_DELIVERED: 'message_delivered',
   JOIN_CHAT: 'join_chat',
   LEAVE_CHAT: 'leave_chat',
 
@@ -13,6 +14,7 @@ const SOCKET_EVENTS = {
   USER_OFFLINE: 'user_offline',
   TYPING_DISPLAY: 'typing_display',
   MESSAGE_SEEN_UPDATE: 'message_seen_update',
+  MESSAGE_DELIVERED_UPDATE: 'message_delivered_update',
   MESSAGE_DELETED: 'message_deleted',
   ONLINE_USERS: 'online_users',
 

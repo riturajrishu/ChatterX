@@ -130,8 +130,32 @@ export const useChatStore = create((set, get) => ({
       const updatedMessages = currentMessages.map(m => {
         if (m._id === messageId) {
           const seenBy = m.seenBy || [];
+          const deliveredTo = m.deliveredTo || [];
           if (!seenBy.includes(userId)) {
-             return { ...m, seenBy: [...seenBy, userId] };
+             return { 
+               ...m, 
+               seenBy: [...seenBy, userId],
+               deliveredTo: deliveredTo.includes(userId) ? deliveredTo : [...deliveredTo, userId]
+             };
+          }
+        }
+        return m;
+      });
+
+      return {
+        messages: { ...state.messages, [chatId]: updatedMessages }
+      };
+    });
+  },
+
+  updateMessageDelivered: (chatId, messageId, userId) => {
+    set((state) => {
+      const currentMessages = state.messages[chatId] || [];
+      const updatedMessages = currentMessages.map(m => {
+        if (m._id === messageId) {
+          const deliveredTo = m.deliveredTo || [];
+          if (!deliveredTo.includes(userId)) {
+            return { ...m, deliveredTo: [...deliveredTo, userId] };
           }
         }
         return m;

@@ -171,6 +171,36 @@ const removeDevice = async (req, res, next) => {
   }
 };
 
+// POST /api/users/fcm-token
+const registerFCMToken = async (req, res, next) => {
+  try {
+    const { token } = req.body;
+    if (!token) return res.status(400).json({ message: 'Token is required' });
+
+    await User.findByIdAndUpdate(req.user._id, {
+      $addToSet: { fcmTokens: token },
+    });
+    res.json({ message: 'Token registered' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// DELETE /api/users/fcm-token
+const removeFCMToken = async (req, res, next) => {
+  try {
+    const { token } = req.body;
+    if (!token) return res.status(400).json({ message: 'Token is required' });
+
+    await User.findByIdAndUpdate(req.user._id, {
+      $pull: { fcmTokens: token },
+    });
+    res.json({ message: 'Token removed' });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   searchUsers,
   getUserProfile,
@@ -180,4 +210,6 @@ module.exports = {
   disable2FA,
   getDeviceHistory,
   removeDevice,
+  registerFCMToken,
+  removeFCMToken,
 };
